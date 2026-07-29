@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #fafaf9;
+  color: #1c1917;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Transição suave padrão para cards e botões */
+@utility transition-soft {
+  transition: all 0.2s ease;
+}

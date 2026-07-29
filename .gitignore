@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+.next/
+out/
+build/
+
+# env files
+.env
+.env.local
+.env*.local
+
+# logs
+*.log
+npm-debug.log*
+
+# prisma client gerado (recriado com `npx prisma generate`)
+backend/src/generated/
+backend/prisma/init.sql
+
+# misc
+.DS_Store
+Thumbs.db
+coverage/

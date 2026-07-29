@@ -1,0 +1,55 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  // O NestJS compila para CommonJS, então o client precisa seguir o mesmo formato
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  // URLs configuradas em prisma.config.ts (DATABASE_URL / DIRECT_URL)
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  items        Item[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum Category {
+  LIVROS
+  ELETRONICOS
+  ENGENHARIA
+  COMPUTACAO
+  VESTUARIO
+  MOVEIS
+  OUTROS
+}
+
+enum ItemStatus {
+  ATIVO
+  VENDIDO
+}
+
+model Item {
+  id          String     @id @default(cuid())
+  title       String
+  description String
+  category    Category
+  price       Decimal?   @db.Decimal(10, 2)
+  isDonation  Boolean    @default(false)
+  imageUrl    String
+  status      ItemStatus @default(ATIVO)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([category])
+  @@index([userId])
+  @@index([status])
+}
