@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { BrandLogo, DesapegaWordmark } from "@/components/BrandLogo";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
 import {
   api,
@@ -31,18 +32,19 @@ function AppShell() {
   const { user, signOut } = useAuth();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col bg-stone-50">
-      {/* Barra superior */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-stone-200 bg-white px-4 py-3">
-        <Link href="/" className="flex items-center gap-2 font-bold text-emerald-700">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
-            ♻
-          </span>
-          Desapega
+    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col bg-mist">
+      <header className="sticky top-0 z-20 flex animate-fade-in items-center justify-between border-b border-fog bg-white/95 px-4 py-3 backdrop-blur">
+        <Link href="/" className="group flex items-center gap-2.5">
+          <BrandLogo
+            mark="blue"
+            height={30}
+            className="transition-soft group-hover:scale-105"
+          />
+          <DesapegaWordmark className="text-base" />
         </Link>
         {user ? (
           <div className="flex items-center gap-3">
-            <span className="text-sm text-stone-600">
+            <span className="text-sm text-muted">
               Olá, {user.name.split(" ")[0]}
             </span>
             <button
@@ -55,32 +57,38 @@ function AppShell() {
         ) : (
           <Link
             href="/login"
-            className="rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white transition-soft hover:bg-emerald-700"
+            className="rounded-lg bg-navy px-4 py-1.5 text-sm font-semibold text-white transition-soft hover:bg-brand"
           >
             Entrar
           </Link>
         )}
       </header>
 
-      {/* Conteúdo */}
-      <main className="flex-1 px-4 pb-24 pt-4">
+      <main className="flex-1 animate-fade-up px-4 pb-24 pt-4">
         {tab === "explorar" && <ExploreTab />}
         {tab === "anunciar" && <NewItemTab onCreated={() => setTab("meus")} />}
         {tab === "meus" && <MyItemsTab />}
       </main>
 
-      {/* Navegação inferior estilo app */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-white">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-fog bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-soft ${
-                tab === t.id ? "text-emerald-600" : "text-stone-400"
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-semibold transition-soft ${
+                tab === t.id
+                  ? "text-navy"
+                  : "text-muted hover:text-brand"
               }`}
             >
-              <span className="text-lg leading-none">{t.icon}</span>
+              <span
+                className={`text-lg leading-none transition-soft ${
+                  tab === t.id ? "scale-110" : ""
+                }`}
+              >
+                {t.icon}
+              </span>
               {t.label}
             </button>
           ))}
@@ -118,7 +126,7 @@ function ExploreTab() {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Buscar livros, calculadoras, jalecos..."
-        className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+        className="w-full rounded-xl border border-fog bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-brand focus:ring-2 focus:ring-brand/20"
       />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -126,8 +134,8 @@ function ExploreTab() {
           onClick={() => setCategory(null)}
           className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-soft ${
             category === null
-              ? "bg-emerald-600 text-white"
-              : "border border-stone-300 bg-white text-stone-600"
+              ? "bg-navy text-white"
+              : "border border-fog bg-white text-muted"
           }`}
         >
           Todos
@@ -138,8 +146,8 @@ function ExploreTab() {
             onClick={() => setCategory(key)}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-soft ${
               category === key
-                ? "bg-emerald-600 text-white"
-                : "border border-stone-300 bg-white text-stone-600"
+                ? "bg-navy text-white"
+                : "border border-fog bg-white text-muted"
             }`}
           >
             {CATEGORIES[key]}
@@ -163,7 +171,7 @@ function ExploreTab() {
       )}
 
       {items?.length === 0 && (
-        <p className="rounded-xl border border-stone-200 bg-white p-8 text-center text-sm text-stone-500">
+        <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
           Nenhum item encontrado. Tente outra busca ou categoria.
         </p>
       )}
@@ -173,19 +181,19 @@ function ExploreTab() {
 
 function LoginPrompt({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center gap-4 rounded-2xl border border-stone-200 bg-white p-8 text-center">
+    <div className="flex flex-col items-center gap-4 rounded-2xl border border-fog bg-white p-8 text-center">
       <span className="text-4xl">🔒</span>
-      <p className="text-stone-600">{message}</p>
+      <p className="text-muted">{message}</p>
       <div className="flex gap-3">
         <Link
           href="/login"
-          className="rounded-xl bg-emerald-600 px-6 py-2.5 font-semibold text-white transition-soft hover:bg-emerald-700"
+          className="rounded-xl bg-navy px-6 py-2.5 font-semibold text-white transition-soft hover:bg-brand"
         >
           Entrar
         </Link>
         <Link
           href="/registro"
-          className="rounded-xl border border-stone-300 px-6 py-2.5 font-semibold text-stone-700 transition-soft hover:border-emerald-400"
+          className="rounded-xl border border-fog px-6 py-2.5 font-semibold text-navy/80 transition-soft hover:border-brand"
         >
           Criar conta
         </Link>
@@ -246,13 +254,13 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
   };
 
   const inputClass =
-    "w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
+    "w-full rounded-xl border border-fog bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-brand focus:ring-2 focus:ring-brand/20";
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-stone-900">Anunciar item</h1>
+      <h1 className="text-xl font-bold text-navy">Anunciar item</h1>
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
         Título
         <input
           required
@@ -265,7 +273,7 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
         />
       </label>
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
         Descrição
         <textarea
           required
@@ -279,7 +287,7 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
         />
       </label>
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
         Categoria
         <select
           required
@@ -300,18 +308,18 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
         </select>
       </label>
 
-      <label className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+      <label className="flex items-center gap-3 rounded-xl border border-brand/25 bg-mist px-4 py-3 text-sm font-medium text-navy">
         <input
           type="checkbox"
           checked={form.isDonation}
           onChange={(e) => setForm({ ...form, isDonation: e.target.checked })}
-          className="h-4 w-4 accent-emerald-600"
+          className="h-4 w-4 accent-brand"
         />
         É doação (sem preço)
       </label>
 
       {!form.isDonation && (
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
           Preço (R$)
           <input
             type="number"
@@ -325,7 +333,7 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
         </label>
       )}
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+      <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
         URL da imagem
         <input
           required
@@ -346,7 +354,7 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
       <button
         type="submit"
         disabled={submitting}
-        className="rounded-xl bg-emerald-600 py-3 font-semibold text-white shadow-sm transition-soft hover:bg-emerald-700 disabled:opacity-60"
+        className="rounded-xl bg-navy py-3 font-semibold text-white shadow-sm transition-soft hover:bg-brand disabled:opacity-60"
       >
         {submitting ? "Publicando..." : "Publicar anúncio"}
       </button>
@@ -388,7 +396,7 @@ function MyItemsTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-stone-900">Meus anúncios</h1>
+      <h1 className="text-xl font-bold text-navy">Meus anúncios</h1>
 
       {error && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
@@ -410,7 +418,7 @@ function MyItemsTab() {
       </div>
 
       {items?.length === 0 && (
-        <p className="rounded-xl border border-stone-200 bg-white p-8 text-center text-sm text-stone-500">
+        <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
           Você ainda não anunciou nada. Use a aba “Anunciar” para desapegar do
           primeiro item!
         </p>

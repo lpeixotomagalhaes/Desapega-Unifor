@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 const inputClass =
-  "w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
+  "w-full rounded-xl border border-fog bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-brand focus:ring-2 focus:ring-brand/20";
 
 export function AuthForm({ mode }: { mode: "login" | "registro" }) {
   const router = useRouter();
@@ -37,27 +38,27 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-emerald-50 to-stone-50 px-4">
+    <div className="hero-glow flex min-h-screen flex-col items-center justify-center px-4">
       <Link
         href="/"
-        className="mb-8 flex items-center gap-2 text-xl font-bold text-emerald-700"
+        className="mb-8 flex animate-fade-up flex-col items-center gap-3"
       >
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
-          ♻
+        <BrandLogo variant="horizontal" height={44} priority />
+        <span className="font-[family-name:var(--font-display)] text-xl font-bold text-white">
+          Desapega UNIFOR
         </span>
-        Desapega UNIFOR
       </Link>
 
       <form
         onSubmit={handleSubmit}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
+        className="animate-fade-up delay-2 flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/15 bg-white p-6 shadow-2xl"
       >
-        <h1 className="text-xl font-bold text-stone-900">
+        <h1 className="font-[family-name:var(--font-display)] text-xl font-bold text-navy">
           {isLogin ? "Entrar" : "Criar conta"}
         </h1>
 
         {!isLogin && (
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
             Nome
             <input
               required
@@ -71,7 +72,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
           </label>
         )}
 
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
           E-mail
           <input
             required
@@ -83,7 +84,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
           />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-stone-700">
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
           Senha
           <input
             required
@@ -97,7 +98,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
         </label>
 
         {error && (
-          <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="animate-fade-in rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </p>
         )}
@@ -105,7 +106,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-xl bg-emerald-600 py-3 font-semibold text-white shadow-sm transition-soft hover:bg-emerald-700 disabled:opacity-60"
+          className="rounded-xl bg-navy py-3 font-semibold text-white shadow-sm transition-soft hover:-translate-y-0.5 hover:bg-brand disabled:opacity-60"
         >
           {submitting
             ? "Aguarde..."
@@ -114,13 +115,13 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
               : "Criar conta"}
         </button>
 
-        <p className="text-center text-sm text-stone-500">
+        <p className="text-center text-sm text-muted">
           {isLogin ? (
             <>
               Ainda não tem conta?{" "}
               <Link
                 href="/registro"
-                className="font-semibold text-emerald-700 hover:underline"
+                className="font-semibold text-brand hover:underline"
               >
                 Cadastre-se
               </Link>
@@ -130,7 +131,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
               Já tem conta?{" "}
               <Link
                 href="/login"
-                className="font-semibold text-emerald-700 hover:underline"
+                className="font-semibold text-brand hover:underline"
               >
                 Entrar
               </Link>

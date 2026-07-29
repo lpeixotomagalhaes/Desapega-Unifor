@@ -11,40 +11,36 @@ interface ItemCardProps {
 
 export function ItemCard({ item, onDelete, deleting }: ItemCardProps) {
   return (
-    <article className="group flex flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm transition-soft hover:-translate-y-0.5 hover:shadow-md">
-      <div className="relative h-44 w-full overflow-hidden bg-stone-100">
+    <article className="group hover-lift flex flex-col overflow-hidden rounded-2xl border border-fog bg-white shadow-sm">
+      <div className="relative h-44 w-full overflow-hidden bg-mist">
         <Image
           src={item.imageUrl}
           alt={item.title}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-          className="object-cover transition-soft group-hover:scale-105"
+          className="object-cover transition-soft duration-500 group-hover:scale-110"
         />
-        <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-stone-700 backdrop-blur">
+        <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
           {CATEGORIES[item.category]}
         </span>
         {item.isDonation && (
-          <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+          <span className="absolute right-3 top-3 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-sm">
             Doação
           </span>
         )}
       </div>
 
       <div className="flex flex-1 flex-col gap-1 p-4">
-        <h3 className="line-clamp-1 font-semibold text-stone-900">
-          {item.title}
-        </h3>
-        <p className="line-clamp-2 text-sm text-stone-500">
-          {item.description}
-        </p>
+        <h3 className="line-clamp-1 font-semibold text-navy">{item.title}</h3>
+        <p className="line-clamp-2 text-sm text-muted">{item.description}</p>
 
         <div className="mt-auto flex items-center justify-between pt-3">
           <span
-            className={`text-lg font-bold ${item.isDonation ? "text-emerald-600" : "text-stone-900"}`}
+            className={`text-lg font-bold ${item.isDonation ? "text-brand" : "text-navy"}`}
           >
             {formatPrice(item)}
           </span>
-          <span className="text-xs text-stone-400">{item.user.name}</span>
+          <span className="text-xs text-muted/80">{item.user.name}</span>
         </div>
 
         {onDelete && (
@@ -63,13 +59,13 @@ export function ItemCard({ item, onDelete, deleting }: ItemCardProps) {
 
 export function ItemCardSkeleton() {
   return (
-    <div className="animate-pulse overflow-hidden rounded-2xl border border-stone-200 bg-white">
-      <div className="h-44 bg-stone-200" />
+    <div className="animate-pulse overflow-hidden rounded-2xl border border-fog bg-white">
+      <div className="h-44 bg-fog" />
       <div className="space-y-2 p-4">
-        <div className="h-4 w-3/4 rounded bg-stone-200" />
-        <div className="h-3 w-full rounded bg-stone-100" />
-        <div className="h-3 w-2/3 rounded bg-stone-100" />
-        <div className="h-5 w-20 rounded bg-stone-200" />
+        <div className="h-4 w-3/4 rounded bg-fog" />
+        <div className="h-3 w-full rounded bg-mist" />
+        <div className="h-3 w-2/3 rounded bg-mist" />
+        <div className="h-5 w-20 rounded bg-fog" />
       </div>
     </div>
   );

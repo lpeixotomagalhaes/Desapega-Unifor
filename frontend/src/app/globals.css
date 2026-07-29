@@ -1,7 +1,28 @@
 @import "tailwindcss";
 
+:root {
+  --unifor-navy: #0a1f4d;
+  --unifor-navy-deep: #061536;
+  --unifor-blue: #1a4fd6;
+  --unifor-blue-bright: #2f6bff;
+  --unifor-mist: #eef2f9;
+  --unifor-fog: #d8e0f0;
+  --unifor-ink: #0f172a;
+  --unifor-muted: #64748b;
+  --surface: #ffffff;
+}
+
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --color-navy: var(--unifor-navy);
+  --color-navy-deep: var(--unifor-navy-deep);
+  --color-brand: var(--unifor-blue);
+  --color-brand-bright: var(--unifor-blue-bright);
+  --color-mist: var(--unifor-mist);
+  --color-fog: var(--unifor-fog);
+  --color-ink: var(--unifor-ink);
+  --color-muted: var(--unifor-muted);
 }
 
 html {
@@ -9,12 +30,122 @@ html {
 }
 
 body {
-  background: #fafaf9;
-  color: #1c1917;
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--unifor-mist);
+  color: var(--unifor-ink);
+  font-family: var(--font-body), system-ui, sans-serif;
 }
 
-/* Transição suave padrão para cards e botões */
+/* --- Animações --- */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@utility animate-fade-up {
+  animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-fade-in {
+  animation: fade-in 0.6s ease both;
+}
+
+@utility animate-slide-in {
+  animation: slide-in-right 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility delay-1 {
+  animation-delay: 0.1s;
+}
+
+@utility delay-2 {
+  animation-delay: 0.2s;
+}
+
+@utility delay-3 {
+  animation-delay: 0.3s;
+}
+
+@utility delay-4 {
+  animation-delay: 0.4s;
+}
+
+@utility delay-5 {
+  animation-delay: 0.5s;
+}
+
 @utility transition-soft {
-  transition: all 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease,
+    opacity 0.2s ease;
+}
+
+@utility hover-lift {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      0 12px 28px -8px rgb(10 31 77 / 0.22),
+      0 4px 10px -4px rgb(10 31 77 / 0.12);
+  }
+}
+
+/* Hero ambient glow */
+.hero-glow {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgb(47 107 255 / 0.35), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 90% 40%, rgb(26 79 214 / 0.2), transparent 50%),
+    linear-gradient(165deg, var(--unifor-navy-deep) 0%, var(--unifor-navy) 55%, #0d2a6a 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
