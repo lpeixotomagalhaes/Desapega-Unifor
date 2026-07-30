@@ -77,7 +77,9 @@ function AppShell() {
         {tab === "anunciar" && (
           <NewItemTab onCreated={() => selectTab("meus")} />
         )}
-        {tab === "meus" && <MyItemsTab />}
+        {tab === "meus" && (
+          <MyItemsTab view={searchParams.get("view")} />
+        )}
       </main>
 
       {/* Mobile: barra de abas inferior, estilo app */}
@@ -405,12 +407,20 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function MyItemsTab() {
+function MyItemsTab({ view }: { view: string | null }) {
   const { token, ready } = useAuthRedirect();
   const [items, setItems] = useState<Item[] | null>(null);
   const [interests, setInterests] = useState<ItemInterest[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState(false);
+
+  const initialTab =
+    view === "concluidos" ||
+    view === "negociando" ||
+    view === "interessados" ||
+    view === "publicados"
+      ? view
+      : undefined;
 
   const load = useCallback(() => {
     if (!token) return;
@@ -444,7 +454,9 @@ function MyItemsTab() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
-      <h1 className="text-xl font-bold text-navy">Meus anúncios</h1>
+      <h1 className="text-xl font-bold text-navy">
+        {view === "concluidos" ? "Minhas vendas / doações" : "Meus anúncios"}
+      </h1>
 
       {error && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
@@ -457,6 +469,7 @@ function MyItemsTab() {
         interests={interests}
         token={token}
         deletingId={deletingId}
+        initialTab={initialTab}
         onDeleteItem={handleDelete}
         onItemUpdated={handleItemUpdated}
       />

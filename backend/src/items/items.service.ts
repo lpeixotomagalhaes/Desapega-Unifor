@@ -206,6 +206,21 @@ export class ItemsService {
     });
   }
 
+  /** Interesses que o usuário (comprador) expressou em anúncios de outros. */
+  findMyPurchases(buyerId: string) {
+    return this.prisma.itemInterest.findMany({
+      where: { buyerId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        item: {
+          include: {
+            user: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+  }
+
   async remove(userId: string, id: string) {
     const item = await this.prisma.item.findUnique({ where: { id } });
     if (!item) {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
 import {
   api,
@@ -13,7 +13,8 @@ import {
   type ItemStatus,
 } from "@/lib/api";
 
-type TabId = "publicados" | "negociando" | "concluidos" | "interessados";
+export type MyAdsTabId = "publicados" | "negociando" | "concluidos" | "interessados";
+type TabId = MyAdsTabId;
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "publicados", label: "Publicados" },
@@ -33,8 +34,21 @@ interface ItemStatusTabsProps {
   interests: ItemInterest[] | null;
   token: string | null;
   deletingId: string | null;
+  initialTab?: TabId;
   onDeleteItem: (id: string) => void;
   onItemUpdated: (item: Item) => void;
+}
+
+function parseInitialTab(value: string | undefined): TabId {
+  if (
+    value === "publicados" ||
+    value === "negociando" ||
+    value === "concluidos" ||
+    value === "interessados"
+  ) {
+    return value;
+  }
+  return "publicados";
 }
 
 export function ItemStatusTabs({
@@ -42,12 +56,17 @@ export function ItemStatusTabs({
   interests,
   token,
   deletingId,
+  initialTab,
   onDeleteItem,
   onItemUpdated,
 }: ItemStatusTabsProps) {
-  const [tab, setTab] = useState<TabId>("publicados");
+  const [tab, setTab] = useState<TabId>(() => parseInitialTab(initialTab));
   const [actingKey, setActingKey] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialTab) setTab(parseInitialTab(initialTab));
+  }, [initialTab]);
 
   const grouped = useMemo(() => {
     const all = items ?? [];

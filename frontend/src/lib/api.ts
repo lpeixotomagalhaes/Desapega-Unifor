@@ -157,6 +157,15 @@ export const api = {
   getMyInterests: (token: string) =>
     request<ItemInterest[]>("/items/mine/interests", { token }),
 
+  getMyPurchases: (token: string) =>
+    request<
+      Array<{
+        id: string;
+        createdAt: string;
+        item: Item;
+      }>
+    >("/items/mine/purchases", { token }),
+
   createItem: (token: string, data: CreateItemInput) =>
     request<Item>("/items", {
       method: "POST",

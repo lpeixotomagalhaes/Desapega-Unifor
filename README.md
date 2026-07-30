@@ -164,8 +164,8 @@ O banco continua no **Supabase**. No Render você sobe **dois Web Services** (AP
 | Variável | Valor |
 | --- | --- |
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | connection string do Supabase (pooler / 6543), com `?pgbouncer=true` |
-| `DIRECT_URL` | connection string do Supabase (5432) |
+| `DATABASE_URL` | **Transaction pooler** Supabase (host `*.pooler.supabase.com`, porta **6543**) com `?pgbouncer=true` — **não** use `db.*.supabase.co` |
+| `DIRECT_URL` | Session pooler ou Direct (porta **5432**) |
 | `JWT_SECRET` | string longa e aleatória (Generate no Render) |
 | `CORS_ORIGIN` | URL do frontend (ex. `https://desapega-web.onrender.com`) — pode preencher depois do passo 2 |
 | `GOOGLE_CLIENT_ID` | (opcional) mesmo Client ID do Google Cloud |
@@ -174,7 +174,12 @@ O banco continua no **Supabase**. No Render você sobe **dois Web Services** (AP
 5. Clique em **Create Web Service** e aguarde o deploy (logs verdes + `API rodando na porta ...`)
 6. Anote a URL pública, ex.: `https://desapega-api.onrender.com`
 
-Teste rápido: abra `https://SEU-API.onrender.com/` — deve retornar JSON `{ "status": "ok", ... }`.
+Teste rápido: abra `https://SEU-API.onrender.com/` — deve retornar JSON com `"status":"ok"` e `"db":"up"`.
+
+Se vier `"db":"down"`, a API subiu mas **não conecta no Supabase**. Confira:
+1. `DATABASE_URL` é o **Transaction pooler** (6543 / `pooler.supabase.com`), senha correta (URL-encode caracteres especiais)
+2. Em **Supabase → Database → Network Restrictions**, ou deixe aberto, ou libere os IPs outbound do Render (ex. `74.220.48.0/24` e `74.220.56.0/24` no Connect do serviço)
+3. Veja o campo `dbError` no JSON do `/` e os logs do Render (`Falha ao conectar no Postgres`)
 
 ### 2. Subir o frontend (`desapega-web`)
 
@@ -221,6 +226,6 @@ Teste rápido: abra `https://SEU-API.onrender.com/` — deve retornar JSON `{ "s
 
 ### Links de produção
 
-- API: (preencher após o deploy)
-- Frontend: (preencher após o deploy)
-- Banco: Supabase (`txztxdcunjwfnkxoxamh` ou o projeto que você estiver usando)
+- API: `https://desapega-unifor-nvt5.onrender.com`
+- Frontend: (criar o 2º Web Service `desapega-web` se ainda não existir)
+- Banco: Supabase projeto `desapega-unifor` (`txztxdcunjwfnkxoxamh`)

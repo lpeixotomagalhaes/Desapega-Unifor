@@ -38,6 +38,12 @@ export class ItemsController {
     return this.itemsService.findMyInterests(user.id);
   }
 
+  @Get('mine/purchases')
+  @UseGuards(JwtAuthGuard)
+  findMyPurchases(@CurrentUser() user: AuthenticatedUser) {
+    return this.itemsService.findMyPurchases(user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.itemsService.findOne(id);

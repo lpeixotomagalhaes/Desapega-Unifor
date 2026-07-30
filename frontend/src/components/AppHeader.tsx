@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
 import { BrandLogo, DesapegaWordmark } from "@/components/BrandLogo";
+import { ProfileAvatar, ProfileDrawer } from "@/components/ProfileDrawer";
 import { SearchBar } from "@/components/SearchBar";
 import type { AppNotification } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -35,6 +36,7 @@ function AppHeaderInner() {
   const notifications = useNotifications();
   const [query, setQuery] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const notifId = useId();
 
@@ -142,90 +144,96 @@ function AppHeaderInner() {
   }
 
   return (
-    <header
-      ref={headerRef}
-      className="sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur"
-    >
-      <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
-        <Link href="/" className="group flex shrink-0 items-center gap-2 sm:gap-2.5">
-          <BrandLogo
-            mark="blue"
-            height={28}
-            className="transition-soft group-hover:scale-105"
-          />
-          <div className="hidden min-[380px]:block">
-            <DesapegaWordmark className="text-sm sm:text-base" />
-            <p className="text-[10px] font-medium leading-none text-muted">
-              Unifor · campus
-            </p>
-          </div>
-        </Link>
-
-        <SearchBar
-          value={query}
-          onChange={handleChange}
-          onSubmitSearch={goSearch}
-        />
-
-        <nav className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-          <HeaderLink
-            href="/app?tab=meus"
-            label="Meus anúncios"
-            icon={<GridIcon className="h-5 w-5" />}
-          />
-
-          <div className="relative">
-            <HeaderIconButton
-              label="Notificações"
-              pressed={panel === "notifications"}
-              controls={notifId}
-              onClick={toggleNotifications}
-              icon={<BellIcon className="h-5 w-5" />}
-              badgeCount={notifications.unreadCount}
+    <>
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur"
+      >
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+          <Link href="/" className="group flex shrink-0 items-center gap-2 sm:gap-2.5">
+            <BrandLogo
+              mark="blue"
+              height={28}
+              className="transition-soft group-hover:scale-105"
             />
-            {panel === "notifications" && (
-              <NotificationsPanel
-                id={notifId}
-                notifications={notifications.notifications}
-                loaded={notifications.loaded}
-                onMarkRead={notifications.markRead}
-                onMarkAllRead={notifications.markAllRead}
-                onNavigate={() => setPanel(null)}
-              />
-            )}
-          </div>
+            <div className="hidden min-[380px]:block">
+              <DesapegaWordmark className="text-sm sm:text-base" />
+              <p className="text-[10px] font-medium leading-none text-muted">
+                Unifor · campus
+              </p>
+            </div>
+          </Link>
 
-          <div className="ml-1 hidden items-center gap-2 border-l border-fog pl-2 md:flex">
-            <span className="max-w-[7rem] truncate text-sm text-muted">
-              Olá, {user.name.split(" ")[0]}
-            </span>
+          <SearchBar
+            value={query}
+            onChange={handleChange}
+            onSubmitSearch={goSearch}
+          />
+
+          <nav className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <HeaderLink
+              href="/app?tab=meus"
+              label="Meus anúncios"
+              icon={<GridIcon className="h-5 w-5" />}
+            />
+
+            <div className="relative">
+              <HeaderIconButton
+                label="Notificações"
+                pressed={panel === "notifications"}
+                controls={notifId}
+                onClick={toggleNotifications}
+                icon={<BellIcon className="h-5 w-5" />}
+                badgeCount={notifications.unreadCount}
+              />
+              {panel === "notifications" && (
+                <NotificationsPanel
+                  id={notifId}
+                  notifications={notifications.notifications}
+                  loaded={notifications.loaded}
+                  onMarkRead={notifications.markRead}
+                  onMarkAllRead={notifications.markAllRead}
+                  onNavigate={() => setPanel(null)}
+                />
+              )}
+            </div>
+
             <button
               type="button"
-              onClick={signOut}
-              className="text-sm font-medium text-red-500 transition-soft hover:text-red-600"
+              onClick={() => {
+                setPanel(null);
+                setProfileOpen(true);
+              }}
+              className="ml-1 inline-flex max-w-[10rem] items-center gap-2 rounded-full border border-fog bg-white py-1 pl-1 pr-2.5 text-sm font-semibold text-navy transition-soft hover:border-brand hover:bg-mist sm:max-w-[12rem] sm:pr-3"
+              aria-haspopup="dialog"
+              aria-expanded={profileOpen}
             >
-              Sair
+              <ProfileAvatar user={user} size={28} />
+              <span className="min-w-0 truncate">{user.name.split(" ")[0]}</span>
+              <ChevronIcon className="h-3.5 w-3.5 shrink-0 text-muted" />
             </button>
-          </div>
 
-          <button
-            type="button"
-            onClick={signOut}
-            className="ml-1 text-sm font-medium text-red-500 md:hidden"
-          >
-            Sair
-          </button>
+            <Link
+              href="/app?tab=anunciar"
+              className="ml-0.5 inline-flex items-center gap-1.5 rounded-full bg-navy px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-soft hover:bg-brand sm:px-4 sm:py-2"
+            >
+              <PlusCircleIcon className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Anunciar</span>
+            </Link>
+          </nav>
+        </div>
+      </header>
 
-          <Link
-            href="/app?tab=anunciar"
-            className="ml-0.5 inline-flex items-center gap-1.5 rounded-full bg-navy px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-soft hover:bg-brand sm:px-4 sm:py-2"
-          >
-            <PlusCircleIcon className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Anunciar</span>
-          </Link>
-        </nav>
-      </div>
-    </header>
+      <ProfileDrawer
+        open={profileOpen}
+        user={user}
+        onClose={() => setProfileOpen(false)}
+        onSignOut={() => {
+          signOut();
+          router.push("/");
+        }}
+      />
+    </>
   );
 }
 
@@ -439,6 +447,20 @@ function PlusCircleIcon({ className }: { className?: string }) {
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7 10l5 5 5-5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
