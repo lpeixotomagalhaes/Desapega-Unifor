@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { BrandLogo, DesapegaWordmark } from "@/components/BrandLogo";
+import { CampusDeliveryTip } from "@/components/CampusDeliveryTip";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
+import { ItemStatusTabs } from "@/components/ItemStatusTabs";
+import { OnboardingTour } from "@/components/OnboardingTour";
 import {
   api,
   ApiError,
@@ -12,8 +13,9 @@ import {
   type Category,
   type CreateItemInput,
   type Item,
+  type ItemInterest,
 } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import { useAuthRedirect } from "@/lib/auth";
 
 type Tab = "explorar" | "anunciar" | "meus";
 
@@ -23,59 +25,69 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "meus", label: "Meus anúncios", icon: "📦" },
 ];
 
+function parseTab(value: string | null): Tab {
+  return value === "anunciar" || value === "meus" ? value : "explorar";
+}
+
 function AppShell() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>(
-    initialTab === "anunciar" || initialTab === "meus" ? initialTab : "explorar",
+  const tab = parseTab(searchParams.get("tab"));
+  const search = searchParams.get("q") ?? "";
+
+  const selectTab = useCallback(
+    (next: Tab) => {
+      const params = new URLSearchParams();
+      if (next !== "explorar") params.set("tab", next);
+      const q = search.trim();
+      if (q) params.set("q", q);
+      const qs = params.toString();
+      router.replace(qs ? `/app?${qs}` : "/app", { scroll: false });
+    },
+    [router, search],
   );
-  const { user, signOut } = useAuth();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col bg-mist">
-      <header className="sticky top-0 z-20 flex animate-fade-in items-center justify-between border-b border-fog bg-white/95 px-4 py-3 backdrop-blur">
-        <Link href="/" className="group flex items-center gap-2.5">
-          <BrandLogo
-            mark="blue"
-            height={30}
-            className="transition-soft group-hover:scale-105"
-          />
-          <DesapegaWordmark className="text-base" />
-        </Link>
-        {user ? (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted">
-              Olá, {user.name.split(" ")[0]}
-            </span>
-            <button
-              onClick={signOut}
-              className="text-sm font-medium text-red-500 transition-soft hover:text-red-600"
-            >
-              Sair
-            </button>
-          </div>
-        ) : (
-          <Link
-            href="/login"
-            className="rounded-lg bg-navy px-4 py-1.5 text-sm font-semibold text-white transition-soft hover:bg-brand"
-          >
-            Entrar
-          </Link>
-        )}
-      </header>
+    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col bg-mist md:max-w-6xl">
+      <OnboardingTour />
 
-      <main className="flex-1 animate-fade-up px-4 pb-24 pt-4">
-        {tab === "explorar" && <ExploreTab />}
-        {tab === "anunciar" && <NewItemTab onCreated={() => setTab("meus")} />}
+      {/* Desktop: navegação por abas no topo do conteúdo (a barra inferior é só mobile) */}
+      <nav className="hidden gap-1 border-b border-fog px-4 pt-2 md:flex">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => selectTab(t.id)}
+            className={`rounded-t-lg px-4 py-2.5 text-sm font-semibold transition-soft ${
+              tab === t.id
+                ? "border-b-2 border-navy text-navy"
+                : "border-b-2 border-transparent text-muted hover:text-navy"
+            }`}
+          >
+            <span className="mr-1.5" aria-hidden>
+              {t.icon}
+            </span>
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <main className="flex-1 animate-fade-up px-4 pb-24 pt-4 md:pb-10">
+        {tab === "explorar" && <ExploreTab search={search} />}
+        {tab === "anunciar" && (
+          <NewItemTab onCreated={() => selectTab("meus")} />
+        )}
         {tab === "meus" && <MyItemsTab />}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-fog bg-white/95 backdrop-blur">
+      {/* Mobile: barra de abas inferior, estilo app */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-fog bg-white/95 backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-3xl">
           {TABS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              type="button"
+              onClick={() => selectTab(t.id)}
               className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-semibold transition-soft ${
                 tab === t.id
                   ? "text-navy"
@@ -98,10 +110,9 @@ function AppShell() {
   );
 }
 
-function ExploreTab() {
+function ExploreTab({ search }: { search: string }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
-  const [search, setSearch] = useState("");
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -111,7 +122,7 @@ function ExploreTab() {
       api
         .getItems({
           category: category ?? undefined,
-          search: search || undefined,
+          search: search.trim() || undefined,
         })
         .then(setItems)
         .catch(() => setError(true));
@@ -121,16 +132,9 @@ function ExploreTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <input
-        type="search"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Buscar livros, calculadoras, jalecos..."
-        className="w-full rounded-xl border border-fog bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-brand focus:ring-2 focus:ring-brand/20"
-      />
-
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button
+          type="button"
           onClick={() => setCategory(null)}
           className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-soft ${
             category === null
@@ -143,6 +147,7 @@ function ExploreTab() {
         {(Object.keys(CATEGORIES) as Category[]).map((key) => (
           <button
             key={key}
+            type="button"
             onClick={() => setCategory(key)}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-soft ${
               category === key
@@ -161,9 +166,9 @@ function ExploreTab() {
           está rodando.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items === null
-            ? Array.from({ length: 4 }).map((_, i) => (
+            ? Array.from({ length: 8 }).map((_, i) => (
                 <ItemCardSkeleton key={i} />
               ))
             : items.map((item) => <ItemCard key={item.id} item={item} />)}
@@ -179,46 +184,57 @@ function ExploreTab() {
   );
 }
 
-function LoginPrompt({ message }: { message: string }) {
-  return (
-    <div className="flex flex-col items-center gap-4 rounded-2xl border border-fog bg-white p-8 text-center">
-      <span className="text-4xl">🔒</span>
-      <p className="text-muted">{message}</p>
-      <div className="flex gap-3">
-        <Link
-          href="/login"
-          className="rounded-xl bg-navy px-6 py-2.5 font-semibold text-white transition-soft hover:bg-brand"
-        >
-          Entrar
-        </Link>
-        <Link
-          href="/registro"
-          className="rounded-xl border border-fog px-6 py-2.5 font-semibold text-navy/80 transition-soft hover:border-brand"
-        >
-          Criar conta
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 function NewItemTab({ onCreated }: { onCreated: () => void }) {
-  const { user, token, loading } = useAuth();
+  const router = useRouter();
+  const { user, token, ready } = useAuthRedirect();
   const [form, setForm] = useState({
     title: "",
     description: "",
     category: "" as Category | "",
     price: "",
     isDonation: false,
-    imageUrl: "",
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (loading) return null;
-  if (!user || !token) {
-    return <LoginPrompt message="Você precisa entrar para anunciar um item." />;
-  }
+  useEffect(() => {
+    if (ready && user && !user.phone) {
+      router.push(
+        `/completar-perfil?returnUrl=${encodeURIComponent("/app?tab=anunciar")}`,
+      );
+    }
+  }, [ready, user, router]);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
+  if (!ready || !token || !user?.phone) return null;
+
+  const handleImageChange = (file: File | null) => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    if (!file) {
+      setImageFile(null);
+      setImagePreview(null);
+      return;
+    }
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      setError("Envie uma imagem JPG, PNG, WEBP ou GIF.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("A imagem deve ter no máximo 5 MB.");
+      return;
+    }
+    setError(null);
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,18 +248,22 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
       setError("Informe um preço ou marque como doação.");
       return;
     }
-
-    const payload: CreateItemInput = {
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      isDonation: form.isDonation,
-      imageUrl: form.imageUrl,
-      ...(form.isDonation ? {} : { price: Number(form.price) }),
-    };
+    if (!imageFile) {
+      setError("Selecione uma foto do item.");
+      return;
+    }
 
     setSubmitting(true);
     try {
+      const { url } = await api.uploadImage(token, imageFile);
+      const payload: CreateItemInput = {
+        title: form.title,
+        description: form.description,
+        category: form.category,
+        isDonation: form.isDonation,
+        imageUrl: url,
+        ...(form.isDonation ? {} : { price: Number(form.price) }),
+      };
       await api.createItem(token, payload);
       onCreated();
     } catch (err) {
@@ -257,7 +277,7 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
     "w-full rounded-xl border border-fog bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-brand focus:ring-2 focus:ring-brand/20";
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="mx-auto flex max-w-2xl flex-col gap-4">
       <h1 className="text-xl font-bold text-navy">Anunciar item</h1>
 
       <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
@@ -286,6 +306,8 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
           className={inputClass}
         />
       </label>
+
+      <CampusDeliveryTip variant="form" />
 
       <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
         Categoria
@@ -333,17 +355,38 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
         </label>
       )}
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-        URL da imagem
-        <input
-          required
-          type="url"
-          value={form.imageUrl}
-          onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-          placeholder="https://exemplo.com/foto-do-item.jpg"
-          className={inputClass}
-        />
-      </label>
+      <div className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+        Foto do item
+        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-fog bg-white px-4 py-6 text-center transition-soft hover:border-brand hover:bg-mist/40">
+          <input
+            required
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="sr-only"
+            onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
+          />
+          {imagePreview ? (
+            <img
+              src={imagePreview}
+              alt="Pré-visualização"
+              className="max-h-48 w-full rounded-lg object-cover"
+            />
+          ) : (
+            <>
+              <span className="text-2xl" aria-hidden>
+                📷
+              </span>
+              <span className="text-sm font-semibold text-navy">
+                Toque para escolher uma foto
+              </span>
+            </>
+          )}
+          <span className="text-xs font-normal text-muted">
+            JPG, PNG, WEBP ou GIF · máx. 5 MB
+            {imageFile ? ` · ${imageFile.name}` : ""}
+          </span>
+        </label>
+      </div>
 
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -363,24 +406,21 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
 }
 
 function MyItemsTab() {
-  const { user, token, loading } = useAuth();
+  const { token, ready } = useAuthRedirect();
   const [items, setItems] = useState<Item[] | null>(null);
+  const [interests, setInterests] = useState<ItemInterest[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
   const load = useCallback(() => {
     if (!token) return;
     api.getMyItems(token).then(setItems).catch(() => setError(true));
+    api.getMyInterests(token).then(setInterests).catch(() => setError(true));
   }, [token]);
 
   useEffect(load, [load]);
 
-  if (loading) return null;
-  if (!user || !token) {
-    return (
-      <LoginPrompt message="Entre para ver e gerenciar seus anúncios." />
-    );
-  }
+  if (!ready || !token) return null;
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -394,8 +434,16 @@ function MyItemsTab() {
     }
   };
 
+  const handleItemUpdated = (updated: Item) => {
+    setItems(
+      (prev) => prev?.map((item) => (item.id === updated.id ? updated : item)) ?? null,
+    );
+    // O status pode ter mudado o comprador em negociação — recarrega os interesses.
+    api.getMyInterests(token).then(setInterests).catch(() => setError(true));
+  };
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <h1 className="text-xl font-bold text-navy">Meus anúncios</h1>
 
       {error && (
@@ -404,25 +452,14 @@ function MyItemsTab() {
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {items === null
-          ? Array.from({ length: 2 }).map((_, i) => <ItemCardSkeleton key={i} />)
-          : items.map((item) => (
-              <ItemCard
-                key={item.id}
-                item={item}
-                onDelete={handleDelete}
-                deleting={deletingId === item.id}
-              />
-            ))}
-      </div>
-
-      {items?.length === 0 && (
-        <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
-          Você ainda não anunciou nada. Use a aba “Anunciar” para desapegar do
-          primeiro item!
-        </p>
-      )}
+      <ItemStatusTabs
+        items={items}
+        interests={interests}
+        token={token}
+        deletingId={deletingId}
+        onDeleteItem={handleDelete}
+        onItemUpdated={handleItemUpdated}
+      />
     </div>
   );
 }

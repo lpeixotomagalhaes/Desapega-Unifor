@@ -78,6 +78,28 @@ body {
   }
 }
 
+@keyframes placeholder-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.placeholder-caret {
+  display: inline-block;
+  width: 1.5px;
+  height: 0.95em;
+  margin-left: 1px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  opacity: 0.55;
+  animation: placeholder-caret-blink 1.05s steps(1, end) infinite;
+}
+
 @utility animate-fade-up {
   animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BrandLogo, DesapegaWordmark } from "@/components/BrandLogo";
+import { BrandLogo } from "@/components/BrandLogo";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
 import {
   api,
   CATEGORIES,
   type Category,
   type Item,
-  type Stats,
 } from "@/lib/api";
 
 const STEPS = [
@@ -31,14 +30,9 @@ const STEPS = [
 ];
 
 export default function LandingPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
   const [category, setCategory] = useState<Category | null>(null);
   const [error, setError] = useState(false);
-
-  useEffect(() => {
-    api.getStats().then(setStats).catch(() => setError(true));
-  }, []);
 
   useEffect(() => {
     setItems(null);
@@ -49,30 +43,7 @@ export default function LandingPage() {
   }, [category]);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-20 border-b border-fog/80 bg-white/90 backdrop-blur-md animate-fade-in">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/" className="group flex items-center gap-3">
-            <BrandLogo mark="blue" height={34} className="transition-soft group-hover:scale-105" />
-            <DesapegaWordmark className="hidden text-lg sm:inline" />
-          </Link>
-          <nav className="flex items-center gap-2 sm:gap-3">
-            <Link
-              href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-navy/70 transition-soft hover:text-brand"
-            >
-              Entrar
-            </Link>
-            <Link
-              href="/app?tab=anunciar"
-              className="rounded-lg bg-navy px-4 py-2 text-sm font-semibold text-white shadow-sm transition-soft hover:-translate-y-0.5 hover:bg-brand hover:shadow-md"
-            >
-              Anunciar item
-            </Link>
-          </nav>
-        </div>
-      </header>
-
+    <div className="flex min-h-0 flex-1 flex-col">
       <main className="flex-1">
         {/* Hero — brand-first, full-bleed navy */}
         <section className="hero-glow relative overflow-hidden text-white">
@@ -110,26 +81,27 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Estatísticas */}
-        <section className="mx-auto max-w-6xl px-4 py-12">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {[
-              { label: "Itens disponíveis", value: stats?.activeItems },
-              { label: "Doações", value: stats?.donations },
-              { label: "Desapegos concluídos", value: stats?.soldItems },
-              { label: "Estudantes cadastrados", value: stats?.users },
-            ].map((stat, i) => (
-              <div
-                key={stat.label}
-                className="hover-lift animate-fade-up rounded-2xl border border-fog bg-white p-6 text-center shadow-sm"
-                style={{ animationDelay: `${(i + 1) * 0.1}s` }}
-              >
-                <p className="font-[family-name:var(--font-display)] text-3xl font-extrabold text-navy">
-                  {stat.value ?? "—"}
-                </p>
-                <p className="mt-1 text-sm text-muted">{stat.label}</p>
-              </div>
-            ))}
+        {/* Como funciona */}
+        <section className="border-b border-fog bg-white">
+          <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+            <h2 className="mb-10 text-center font-[family-name:var(--font-display)] text-2xl font-bold text-navy sm:text-3xl">
+              Como funciona
+            </h2>
+            <div className="grid gap-6 sm:grid-cols-3">
+              {STEPS.map((step, index) => (
+                <div
+                  key={step.title}
+                  className="hover-lift animate-fade-up rounded-2xl border border-fog bg-mist/50 p-6"
+                  style={{ animationDelay: `${(index + 1) * 0.12}s` }}
+                >
+                  <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-navy font-[family-name:var(--font-display)] font-bold text-white">
+                    {index + 1}
+                  </span>
+                  <h3 className="mb-2 font-semibold text-navy">{step.title}</h3>
+                  <p className="text-sm text-muted">{step.description}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -197,30 +169,6 @@ export default function LandingPage() {
             >
               Ver todos no app
             </Link>
-          </div>
-        </section>
-
-        {/* Como funciona */}
-        <section className="border-y border-fog bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <h2 className="mb-10 text-center font-[family-name:var(--font-display)] text-2xl font-bold text-navy sm:text-3xl">
-              Como funciona
-            </h2>
-            <div className="grid gap-6 sm:grid-cols-3">
-              {STEPS.map((step, index) => (
-                <div
-                  key={step.title}
-                  className="hover-lift animate-fade-up rounded-2xl border border-fog bg-mist/50 p-6"
-                  style={{ animationDelay: `${(index + 1) * 0.12}s` }}
-                >
-                  <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-navy font-[family-name:var(--font-display)] font-bold text-white">
-                    {index + 1}
-                  </span>
-                  <h3 className="mb-2 font-semibold text-navy">{step.title}</h3>
-                  <p className="text-sm text-muted">{step.description}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </section>
       </main>

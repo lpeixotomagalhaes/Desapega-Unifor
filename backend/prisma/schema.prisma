@@ -11,13 +11,22 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  items        Item[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  name                  String
+  email                 String    @unique
+  passwordHash          String?
+  googleId              String?   @unique
+  avatarUrl             String?
+  phone                 String?
+  onboardingCompletedAt DateTime?
+  items                 Item[]         @relation("ItemOwner")
+  negotiations          Item[]         @relation("ItemNegotiation")
+  interests             ItemInterest[]
+  notifications         Notification[]
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([googleId])
 }
 
 enum Category {
@@ -32,24 +41,64 @@ enum Category {
 
 enum ItemStatus {
   ATIVO
-  VENDIDO
+  NEGOCIANDO
+  CONCLUIDO
 }
 
 model Item {
-  id          String     @id @default(cuid())
-  title       String
-  description String
-  category    Category
-  price       Decimal?   @db.Decimal(10, 2)
-  isDonation  Boolean    @default(false)
-  imageUrl    String
-  status      ItemStatus @default(ATIVO)
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id                String     @id @default(cuid())
+  title             String
+  description       String
+  category          Category
+  price             Decimal?   @db.Decimal(10, 2)
+  isDonation        Boolean    @default(false)
+  imageUrl          String
+  status            ItemStatus @default(ATIVO)
+  user              User       @relation("ItemOwner", fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  negotiatingWith   User?      @relation("ItemNegotiation", fields: [negotiatingWithId], references: [id], onDelete: SetNull)
+  negotiatingWithId String?
+  interests         ItemInterest[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@index([category])
   @@index([userId])
   @@index([status])
+  @@index([negotiatingWithId])
+}
+
+model ItemInterest {
+  id        String   @id @default(cuid())
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId    String
+  buyer     User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([itemId, buyerId])
+  @@index([itemId])
+  @@index([buyerId])
+}
+
+enum NotificationType {
+  NEW_INTEREST
+  ITEM_STATUS_CHANGED
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  itemId    String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([userId, readAt])
 }

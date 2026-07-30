@@ -18,6 +18,18 @@ async function main() {
       name: 'Estudante Demo',
       email: 'demo@edu.unifor.br',
       passwordHash,
+      phone: '5585912345678',
+    },
+  });
+
+  // Usuário sem telefone: exercita o fluxo de /completar-perfil (ex.: quem entra com Google).
+  await prisma.user.upsert({
+    where: { email: 'incompleto@edu.unifor.br' },
+    update: {},
+    create: {
+      name: 'Perfil Incompleto',
+      email: 'incompleto@edu.unifor.br',
+      passwordHash: await bcrypt.hash('123456', 10),
     },
   });
 

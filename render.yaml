@@ -1,0 +1,49 @@
+# Blueprint Render — Desapega UNIFOR
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Como usar:
+# 1. Faça push deste arquivo para o GitHub
+# 2. No Render: New > Blueprint > selecione o repositório
+# 3. Preencha as env vars marcadas como sync: false no dashboard
+#
+# Alternativa: criar os 2 Web Services manualmente (passo a passo no README).
+
+services:
+  - type: web
+    name: desapega-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+  - type: web
+    name: desapega-web
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: frontend
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
+        sync: false

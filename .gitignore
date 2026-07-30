@@ -20,6 +20,9 @@ npm-debug.log*
 backend/src/generated/
 backend/prisma/init.sql
 
+# uploads locais de imagens de anúncios
+backend/uploads/
+
 # misc
 .DS_Store
 Thumbs.db

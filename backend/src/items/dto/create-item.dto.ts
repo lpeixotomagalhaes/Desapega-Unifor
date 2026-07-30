@@ -5,7 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUrl,
+  Matches,
   MaxLength,
   Min,
   MinLength,
@@ -20,7 +20,9 @@ export class CreateItemDto {
 
   @IsString()
   @MinLength(10, { message: 'A descrição deve ter pelo menos 10 caracteres.' })
-  @MaxLength(1000, { message: 'A descrição deve ter no máximo 1000 caracteres.' })
+  @MaxLength(1000, {
+    message: 'A descrição deve ter no máximo 1000 caracteres.',
+  })
   description: string;
 
   @IsEnum(Category, {
@@ -38,6 +40,10 @@ export class CreateItemDto {
   @IsBoolean({ message: 'isDonation deve ser true ou false.' })
   isDonation?: boolean;
 
-  @IsUrl({}, { message: 'Informe uma URL de imagem válida.' })
+  /** Aceita upload local (`/uploads/...`) ou URL remota (seed/demo). */
+  @IsString()
+  @Matches(/^(https?:\/\/.+|\/uploads\/.+)$/i, {
+    message: 'Envie uma imagem válida (upload ou URL).',
+  })
   imageUrl: string;
 }

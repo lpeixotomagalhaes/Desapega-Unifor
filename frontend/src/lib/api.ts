@@ -13,6 +13,8 @@ export const CATEGORIES = {
 
 export type Category = keyof typeof CATEGORIES;
 
+export type ItemStatus = "ATIVO" | "NEGOCIANDO" | "CONCLUIDO";
+
 export interface Item {
   id: string;
   title: string;
@@ -21,7 +23,8 @@ export interface Item {
   price: string | null;
   isDonation: boolean;
   imageUrl: string;
-  status: "ATIVO" | "VENDIDO";
+  status: ItemStatus;
+  negotiatingWithId?: string | null;
   createdAt: string;
   user: { id: string; name: string };
 }
@@ -37,11 +40,15 @@ export interface SessionUser {
   id: string;
   name: string;
   email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  onboardingCompletedAt: string | null;
 }
 
 export interface AuthResponse {
   accessToken: string;
   user: SessionUser;
+  isNewUser: boolean;
 }
 
 export interface CreateItemInput {
@@ -51,6 +58,41 @@ export interface CreateItemInput {
   price?: number;
   isDonation?: boolean;
   imageUrl: string;
+}
+
+export interface RegisterInput {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+}
+
+export interface UpdateMeInput {
+  name?: string;
+  phone?: string;
+  avatarUrl?: string;
+}
+
+export interface ItemInterest {
+  id: string;
+  itemId: string;
+  buyerId: string;
+  createdAt: string;
+  item: { id: string; title: string; imageUrl: string; status: ItemStatus };
+  buyer: { id: string; name: string };
+}
+
+export type NotificationType = "NEW_INTEREST" | "ITEM_STATUS_CHANGED";
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  itemId: string | null;
+  readAt: string | null;
+  createdAt: string;
 }
 
 export class ApiError extends Error {
@@ -64,17 +106,22 @@ export class ApiError extends Error {
 
 async function request<T>(
   path: string,
-  options: RequestInit & { token?: string | null } = {},
+  options: RequestInit & { token?: string | null; json?: boolean } = {},
 ): Promise<T> {
-  const { token, ...init } = options;
+  const { token, json = true, ...init } = options;
+
+  const headers: HeadersInit = {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...init.headers,
+  };
+  // FormData precisa que o browser defina o boundary do multipart
+  if (json) {
+    (headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
 
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers,
-    },
+    headers,
   });
 
   const body = (await response.json().catch(() => null)) as unknown;
@@ -103,7 +150,12 @@ export const api = {
     return request<Item[]>(`/items${qs ? `?${qs}` : ""}`);
   },
 
+  getItem: (id: string) => request<Item>(`/items/${id}`),
+
   getMyItems: (token: string) => request<Item[]>("/items/mine", { token }),
+
+  getMyInterests: (token: string) =>
+    request<ItemInterest[]>("/items/mine/interests", { token }),
 
   createItem: (token: string, data: CreateItemInput) =>
     request<Item>("/items", {
@@ -112,10 +164,38 @@ export const api = {
       token,
     }),
 
+  uploadImage: (token: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<{ url: string }>("/uploads", {
+      method: "POST",
+      body,
+      token,
+      json: false,
+    });
+  },
+
+  updateItemStatus: (
+    token: string,
+    id: string,
+    data: { status: ItemStatus; negotiatingWithId?: string | null },
+  ) =>
+    request<Item>(`/items/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  expressInterest: (token: string, id: string) =>
+    request<{ whatsappUrl: string }>(`/items/${id}/interest`, {
+      method: "POST",
+      token,
+    }),
+
   deleteItem: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/items/${id}`, { method: "DELETE", token }),
 
-  register: (data: { name: string; email: string; password: string }) =>
+  register: (data: RegisterInput) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),
@@ -126,6 +206,47 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  loginWithGoogle: (idToken: string) =>
+    request<AuthResponse>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify({ idToken }),
+    }),
+
+  checkEmail: (email: string) =>
+    request<{ exists: boolean }>(
+      `/auth/check-email?email=${encodeURIComponent(email)}`,
+    ),
+
+  getMe: (token: string) => request<SessionUser>("/auth/me", { token }),
+
+  updateMe: (token: string, data: UpdateMeInput) =>
+    request<SessionUser>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  completeOnboarding: (token: string) =>
+    request<SessionUser>("/auth/me/onboarding", { method: "PATCH", token }),
+
+  getNotifications: (token: string) =>
+    request<AppNotification[]>("/notifications", { token }),
+
+  getUnreadNotificationsCount: (token: string) =>
+    request<{ count: number }>("/notifications/unread-count", { token }),
+
+  markNotificationRead: (token: string, id: string) =>
+    request<AppNotification>(`/notifications/${id}/read`, {
+      method: "PATCH",
+      token,
+    }),
+
+  markAllNotificationsRead: (token: string) =>
+    request<{ updated: boolean }>("/notifications/read-all", {
+      method: "PATCH",
+      token,
+    }),
 };
 
 export function formatPrice(item: Item): string {
@@ -135,4 +256,26 @@ export function formatPrice(item: Item): string {
     style: "currency",
     currency: "BRL",
   });
+}
+
+export function itemStatusLabel(item: Item): string | null {
+  if (item.status === "NEGOCIANDO") return "Em negociação";
+  if (item.status === "CONCLUIDO") return item.isDonation ? "Doado" : "Vendido";
+  return null;
+}
+
+/** Resolve caminhos relativos de upload (`/uploads/...`) para URL absoluta da API. */
+export function resolveImageUrl(imageUrl: string): string {
+  if (
+    imageUrl.startsWith("http://") ||
+    imageUrl.startsWith("https://") ||
+    imageUrl.startsWith("blob:") ||
+    imageUrl.startsWith("data:")
+  ) {
+    return imageUrl;
+  }
+  if (imageUrl.startsWith("/")) {
+    return `${API_URL}${imageUrl}`;
+  }
+  return imageUrl;
 }

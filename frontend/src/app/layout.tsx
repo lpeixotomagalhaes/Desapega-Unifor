@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/lib/auth";
+import { AppHeader } from "@/components/AppHeader";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { AuthProvider } from "@/lib/auth";
 
 const display = Outfit({
   variable: "--font-display",
@@ -43,7 +44,10 @@ export default function RootLayout({
       className={`${display.variable} ${body.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <AppHeader />
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        </AuthProvider>
         <ServiceWorkerRegister />
       </body>
     </html>

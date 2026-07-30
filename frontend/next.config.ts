@@ -2,8 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    // Anúncios usam URLs de imagem externas informadas pelo usuário
-    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    // Anúncios: URLs externas (seed) + uploads servidos pela API local
+    remotePatterns: [
+      { protocol: "https", hostname: "**" },
+      { protocol: "http", hostname: "localhost", pathname: "/uploads/**" },
+      { protocol: "http", hostname: "127.0.0.1", pathname: "/uploads/**" },
+    ],
   },
 };
 

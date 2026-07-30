@@ -9,7 +9,7 @@ export class StatsService {
     const [activeItems, donations, soldItems, users] = await Promise.all([
       this.prisma.item.count({ where: { status: 'ATIVO' } }),
       this.prisma.item.count({ where: { isDonation: true } }),
-      this.prisma.item.count({ where: { status: 'VENDIDO' } }),
+      this.prisma.item.count({ where: { status: 'CONCLUIDO' } }),
       this.prisma.user.count(),
     ]);
 
