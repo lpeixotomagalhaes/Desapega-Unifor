@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  CATEGORIES,
+  formatCategories,
   formatPrice,
   itemStatusLabel,
   resolveImageUrl,
@@ -35,8 +35,8 @@ export function ItemCard({ item, onDelete, deleting }: ItemCardProps) {
               item.status === "CONCLUIDO" ? "grayscale-[35%]" : ""
             }`}
           />
-          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
-            {CATEGORIES[item.category]}
+          <span className="absolute left-3 top-3 max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
+            {formatCategories(item.categories)}
           </span>
           {item.isDonation && item.status !== "CONCLUIDO" && !statusLabel && (
             <span className="absolute right-3 top-3 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-sm">

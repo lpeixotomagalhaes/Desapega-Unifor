@@ -1,5 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNumber,
@@ -25,10 +28,14 @@ export class CreateItemDto {
   })
   description: string;
 
+  @IsArray({ message: 'Envie pelo menos uma categoria.' })
+  @ArrayMinSize(1, { message: 'Escolha pelo menos uma categoria.' })
+  @ArrayUnique({ message: 'Categorias duplicadas não são permitidas.' })
   @IsEnum(Category, {
+    each: true,
     message: `Categoria inválida. Use uma de: ${Object.values(Category).join(', ')}.`,
   })
-  category: Category;
+  categories: Category[];
 
   @IsOptional()
   @Type(() => Number)

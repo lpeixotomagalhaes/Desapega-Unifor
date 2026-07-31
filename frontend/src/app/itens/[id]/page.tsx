@@ -9,6 +9,7 @@ import {
   api,
   ApiError,
   CATEGORIES,
+  formatCategories,
   formatPrice,
   itemStatusLabel,
   resolveImageUrl,
@@ -141,8 +142,8 @@ export default function ItemDetailPage() {
             className={`object-cover ${isConcluded ? "grayscale-[35%]" : ""}`}
             priority
           />
-          <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
-            {CATEGORIES[item.category]}
+          <span className="absolute left-4 top-4 max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
+            {formatCategories(item.categories)}
           </span>
           {statusLabel && (
             <span
@@ -163,6 +164,16 @@ export default function ItemDetailPage() {
             <p className="mt-1 text-sm text-muted">
               Anunciado por {item.user.name}
             </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {item.categories.map((c) => (
+                <span
+                  key={c}
+                  className="rounded-full border border-fog bg-mist px-2.5 py-0.5 text-xs font-semibold text-navy/80"
+                >
+                  {CATEGORIES[c]}
+                </span>
+              ))}
+            </div>
           </div>
 
           <p

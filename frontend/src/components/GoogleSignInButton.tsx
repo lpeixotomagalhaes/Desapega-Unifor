@@ -82,7 +82,19 @@ export function GoogleSignInButton({
     });
   }, [scriptReady, clientId, handleCredential]);
 
-  if (!clientId) return null;
+  if (!clientId) {
+    // Sem Client ID o botão GIS não renderiza — avisa em vez de sumir em silêncio.
+    return (
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-800">
+        Login com Google ainda não configurado. Preencha{" "}
+        <code className="font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> no{" "}
+        <code className="font-mono">frontend/.env.local</code> e{" "}
+        <code className="font-mono">GOOGLE_CLIENT_ID</code> no{" "}
+        <code className="font-mono">backend/.env</code> (mesmo valor), depois
+        reinicie o frontend e o backend.
+      </p>
+    );
+  }
 
   return (
     <>
@@ -93,7 +105,7 @@ export function GoogleSignInButton({
       />
       <div
         ref={containerRef}
-        className="flex w-full justify-center"
+        className="flex min-h-[40px] w-full justify-center"
         aria-label="Continuar com o Google"
       />
     </>

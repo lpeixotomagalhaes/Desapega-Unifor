@@ -139,7 +139,7 @@ aparece e o cadastro/login por e-mail e senha continua funcionando normalmente.
 
 ## Deploy (produção) — Render + Supabase
 
-O banco continua no **Supabase**. No Render você sobe **dois Web Services** (API NestJS + frontend Next.js). O arquivo [`render.yaml`](render.yaml) na raiz descreve esses serviços (Blueprint).
+O banco continua no **Supabase**. A **API NestJS** sobe no **Render**; o **frontend Next.js** sobe na **Vercel**. O arquivo [`render.yaml`](render.yaml) descreve a API (e opcionalmente um frontend no Render, se preferir).
 
 > No plano **free**, o serviço “dorme” após ~15 min sem tráfego — a primeira requisição depois disso pode demorar 30–60s (cold start).
 
@@ -181,35 +181,54 @@ Se vier `"db":"down"`, a API subiu mas **não conecta no Supabase**. Confira:
 2. Em **Supabase → Database → Network Restrictions**, ou deixe aberto, ou libere os IPs outbound do Render (ex. `74.220.48.0/24` e `74.220.56.0/24` no Connect do serviço)
 3. Veja o campo `dbError` no JSON do `/` e os logs do Render (`Falha ao conectar no Postgres`)
 
-### 2. Subir o frontend (`desapega-web`)
+### 2. Subir o frontend na Vercel
 
-1. **New → Web Service** de novo no mesmo repositório
+1. No [Vercel](https://vercel.com): **Add New → Project** → importe `lpeixotomagalhaes/Desapega-Unifor`
 2. Configure:
-   - **Name:** `desapega-web`
    - **Root Directory:** `frontend`
-   - **Build Command:** `npm install --include=dev && npm run build`
-   - **Start Command:** `npm start`
-   - **Instance type:** Free
-3. Em **Environment**:
+   - **Framework Preset:** Next.js
+   - **Build Command:** `npm run build` (padrão)
+   - **Install Command:** `npm install` (padrão)
+3. Em **Environment Variables**:
 
 | Variável | Valor |
 | --- | --- |
-| `NODE_ENV` | `production` |
-| `NEXT_PUBLIC_API_URL` | URL da API do passo 1, **sem barra no final** (ex. `https://desapega-api.onrender.com`) |
+| `NEXT_PUBLIC_API_URL` | URL da API no Render, **sem barra no final** (ex. `https://desapega-unifor-nvt5.onrender.com`) |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | (opcional) mesmo Client ID do backend |
 
-> `NEXT_PUBLIC_*` é embutido no **build**. Se mudar a URL da API depois, force um **Clear build cache & deploy** no frontend.
+> `NEXT_PUBLIC_*` é embutido no **build**. Se mudar a URL da API depois, faça um novo deploy na Vercel.
 
-4. Crie o serviço e anote a URL, ex.: `https://desapega-web.onrender.com`
+4. Deploy e anote a URL, ex.: `https://desapega-unifor.vercel.app`
+
+Alternativa via CLI (na pasta `frontend/`):
+
+```bash
+npx vercel --prod --yes \
+  --build-env NEXT_PUBLIC_API_URL=https://desapega-unifor-nvt5.onrender.com
+```
 
 ### 3. Ajustes finais (obrigatórios)
 
-1. Volte em **desapega-api → Environment** e defina:
-   - `CORS_ORIGIN=https://desapega-web.onrender.com`
-2. Redeploy da API (Manual Deploy → Deploy latest commit)
+1. No Render (**desapega-api → Environment**), defina:
+   - `CORS_ORIGIN=https://SEU-APP.vercel.app` (URL exata da Vercel, sem barra no final)
+2. Redeploy da API (Manual Deploy → Deploy latest commit) — ou aguarde o restart automático ao salvar env
 3. Se usar login Google, no [Google Cloud Console](https://console.cloud.google.com/apis/credentials) adicione em **Authorized JavaScript origins**:
-   - `https://desapega-web.onrender.com`
-   - (e mantenha `http://localhost:3000` para local)
+   - `https://desapega-unifor-vert.vercel.app` (produção atual)
+   - `http://localhost:3000` (local)
+4. No **Render** (`desapega-api` → Environment), confirme `GOOGLE_CLIENT_ID` com o **mesmo** Client ID do Google (sem isso `/auth/google` falha em produção).
+
+### Cloudflare (opcional — precisa de domínio próprio)
+
+O proxy “nuvem laranja” do Cloudflare **não** se aplica direto em `*.vercel.app`: você não controla o DNS da Vercel. Sem domínio próprio, use a segurança nativa da Vercel (HTTPS + edge) — já basta para o desafio.
+
+Com domínio (ex. `desapega.seudominio.com`):
+1. Registrar o domínio e adicionar no Cloudflare (nameservers do registrador → Cloudflare)
+2. No Cloudflare DNS: `CNAME` `@` ou `www` → `cname.vercel-dns.com` (proxy laranja ok)
+3. Na Vercel: **Project → Settings → Domains** → adicionar o domínio e seguir a validação
+4. Atualizar `CORS_ORIGIN` no Render e **Authorized JavaScript origins** no Google com a URL do domínio
+5. **Não** coloque a API Nest do Render atrás do mesmo hostname do front sem proxy reverso bem configurado — mantenha API no Render e front no domínio
+
+Não use Worker/proxy improvisado apontando para `*.vercel.app` só “por segurança”: quebra cookies, cache e preview da Vercel.
 
 ### 4. (Opcional) Deploy via Blueprint
 
@@ -226,6 +245,6 @@ Se vier `"db":"down"`, a API subiu mas **não conecta no Supabase**. Confira:
 
 ### Links de produção
 
-- API: `https://desapega-unifor-nvt5.onrender.com`
-- Frontend: (criar o 2º Web Service `desapega-web` se ainda não existir)
+- API (Render): `https://desapega-unifor-nvt5.onrender.com`
+- Frontend (Vercel): `https://desapega-unifor-vert.vercel.app`
 - Banco: Supabase projeto `desapega-unifor` (`txztxdcunjwfnkxoxamh`)

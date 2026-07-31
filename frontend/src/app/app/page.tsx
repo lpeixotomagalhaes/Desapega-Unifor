@@ -192,7 +192,7 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
   const [form, setForm] = useState({
     title: "",
     description: "",
-    category: "" as Category | "",
+    categories: [] as Category[],
     price: "",
     isDonation: false,
   });
@@ -242,8 +242,8 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
     e.preventDefault();
     setError(null);
 
-    if (!form.category) {
-      setError("Escolha uma categoria.");
+    if (form.categories.length === 0) {
+      setError("Escolha pelo menos uma categoria.");
       return;
     }
     if (!form.isDonation && !form.price) {
@@ -261,7 +261,7 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
       const payload: CreateItemInput = {
         title: form.title,
         description: form.description,
-        category: form.category,
+        categories: form.categories,
         isDonation: form.isDonation,
         imageUrl: url,
         ...(form.isDonation ? {} : { price: Number(form.price) }),
@@ -311,26 +311,39 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
 
       <CampusDeliveryTip variant="form" />
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-        Categoria
-        <select
-          required
-          value={form.category}
-          onChange={(e) =>
-            setForm({ ...form, category: e.target.value as Category })
-          }
-          className={inputClass}
-        >
-          <option value="" disabled>
-            Selecione uma categoria
-          </option>
-          {(Object.keys(CATEGORIES) as Category[]).map((key) => (
-            <option key={key} value={key}>
-              {CATEGORIES[key]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-navy/80">
+          Categorias{" "}
+          <span className="font-normal text-muted">(pode marcar mais de uma)</span>
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(CATEGORIES) as Category[]).map((key) => {
+            const selected = form.categories.includes(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setForm((prev) => ({
+                    ...prev,
+                    categories: selected
+                      ? prev.categories.filter((c) => c !== key)
+                      : [...prev.categories, key],
+                  }));
+                }}
+                className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-soft ${
+                  selected
+                    ? "bg-navy text-white"
+                    : "border border-fog bg-white text-muted hover:border-brand hover:text-navy"
+                }`}
+                aria-pressed={selected}
+              >
+                {CATEGORIES[key]}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
 
       <label className="flex items-center gap-3 rounded-xl border border-brand/25 bg-mist px-4 py-3 text-sm font-medium text-navy">
         <input

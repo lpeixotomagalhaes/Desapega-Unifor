@@ -36,7 +36,7 @@ async function main() {
   const items: Array<{
     title: string;
     description: string;
-    category: Category;
+    categories: Category[];
     price: number | null;
     isDonation: boolean;
     imageUrl: string;
@@ -45,7 +45,7 @@ async function main() {
       title: 'Cálculo Vol. 1 — James Stewart',
       description:
         'Livro de Cálculo 1 em ótimo estado, poucas marcações a lápis. Ideal para quem está começando Engenharia ou Computação.',
-      category: Category.LIVROS,
+      categories: [Category.LIVROS, Category.ENGENHARIA, Category.COMPUTACAO],
       price: 60,
       isDonation: false,
       imageUrl: 'https://picsum.photos/seed/calculo/600/400',
@@ -54,7 +54,7 @@ async function main() {
       title: 'Calculadora Científica Casio FX-82MS',
       description:
         'Calculadora funcionando perfeitamente, acompanha capa. Usei durante 2 semestres de Física.',
-      category: Category.ELETRONICOS,
+      categories: [Category.ELETRONICOS, Category.ENGENHARIA],
       price: 45,
       isDonation: false,
       imageUrl: 'https://picsum.photos/seed/casio/600/400',
@@ -63,7 +63,7 @@ async function main() {
       title: 'Jaleco branco tamanho M',
       description:
         'Jaleco de laboratório tamanho M, usado apenas um semestre. Doando para quem vai começar as aulas práticas.',
-      category: Category.VESTUARIO,
+      categories: [Category.VESTUARIO],
       price: null,
       isDonation: true,
       imageUrl: 'https://picsum.photos/seed/jaleco/600/400',
@@ -72,7 +72,7 @@ async function main() {
       title: 'Kit Arduino Uno + protoboard e jumpers',
       description:
         'Kit completo para projetos de eletrônica: Arduino Uno original, protoboard 830 pontos, jumpers e LEDs.',
-      category: Category.ENGENHARIA,
+      categories: [Category.ENGENHARIA, Category.ELETRONICOS, Category.COMPUTACAO],
       price: 120,
       isDonation: false,
       imageUrl: 'https://picsum.photos/seed/arduino/600/400',
@@ -81,7 +81,7 @@ async function main() {
       title: 'Apostilas de Algoritmos e Estruturas de Dados',
       description:
         'Material impresso completo das disciplinas de Algoritmos 1 e 2, com anotações e exercícios resolvidos. Doação!',
-      category: Category.COMPUTACAO,
+      categories: [Category.COMPUTACAO, Category.LIVROS],
       price: null,
       isDonation: true,
       imageUrl: 'https://picsum.photos/seed/apostila/600/400',
@@ -90,7 +90,7 @@ async function main() {
       title: 'Escrivaninha de estudos com cadeira',
       description:
         'Escrivaninha 1,20m com cadeira giratória. Retirada no bairro Edson Queiroz, perto do campus.',
-      category: Category.MOVEIS,
+      categories: [Category.MOVEIS],
       price: 150,
       isDonation: false,
       imageUrl: 'https://picsum.photos/seed/mesa/600/400',

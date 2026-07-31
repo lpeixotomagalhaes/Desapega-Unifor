@@ -38,7 +38,7 @@ export class ItemsService {
     };
 
     if (query.category) {
-      where.category = query.category;
+      where.categories = { has: query.category };
     }
     if (query.search) {
       where.OR = [
@@ -93,7 +93,7 @@ export class ItemsService {
       data: {
         title: dto.title,
         description: dto.description,
-        category: dto.category,
+        categories: dto.categories,
         // Item doado não tem preço, mesmo que um valor tenha sido enviado
         price: isDonation ? null : dto.price,
         isDonation,

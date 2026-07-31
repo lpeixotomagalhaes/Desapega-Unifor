@@ -19,7 +19,7 @@ export interface Item {
   id: string;
   title: string;
   description: string;
-  category: Category;
+  categories: Category[];
   price: string | null;
   isDonation: boolean;
   imageUrl: string;
@@ -54,7 +54,7 @@ export interface AuthResponse {
 export interface CreateItemInput {
   title: string;
   description: string;
-  category: Category;
+  categories: Category[];
   price?: number;
   isDonation?: boolean;
   imageUrl: string;
@@ -265,6 +265,10 @@ export function formatPrice(item: Item): string {
     style: "currency",
     currency: "BRL",
   });
+}
+
+export function formatCategories(categories: Category[]): string {
+  return categories.map((c) => CATEGORIES[c]).join(" · ");
 }
 
 export function itemStatusLabel(item: Item): string | null {
