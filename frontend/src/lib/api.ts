@@ -126,8 +126,13 @@ export interface UpdateMeInput {
 }
 
 export type NotificationType =
+  | "WELCOME"
+  | "ITEM_PUBLISHED"
   | "NEW_INTEREST"
+  | "PROPOSAL_ACCEPTED"
   | "ITEM_STATUS_CHANGED"
+  | "ITEM_SAVED_UPDATE"
+  | "ORDER_DELIVERED"
   | "REVIEW_REQUEST"
   | "NEW_REVIEW";
 
@@ -446,6 +451,27 @@ export const api = {
 
   getUserProfile: (id: string) =>
     request<PublicProfile>(`/users/${id}/profile`),
+
+  getSavedItemIds: (token: string) =>
+    request<{ ids: string[] }>("/saved-items/ids", { token }),
+
+  getSavedItems: (token: string) =>
+    request<Array<{ id: string; itemId: string; createdAt: string; item: Item }>>(
+      "/saved-items",
+      { token },
+    ),
+
+  saveItem: (token: string, itemId: string) =>
+    request<{ saved: boolean; itemId: string }>(`/saved-items/${itemId}`, {
+      method: "POST",
+      token,
+    }),
+
+  unsaveItem: (token: string, itemId: string) =>
+    request<{ saved: boolean; itemId: string }>(`/saved-items/${itemId}`, {
+      method: "DELETE",
+      token,
+    }),
 
   createSupportTicket: (
     token: string,

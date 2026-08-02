@@ -7,6 +7,7 @@ import { ItemsModule } from './items/items.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { SavedItemsModule } from './saved-items/saved-items.module';
 import { StatsModule } from './stats/stats.module';
 import { SupportModule } from './support/support.module';
 import { UploadsModule } from './uploads/uploads.module';
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module';
     SupportModule,
     ReviewsModule,
     UsersModule,
+    SavedItemsModule,
   ],
   controllers: [AppController],
 })

@@ -18,12 +18,13 @@ import {
 } from "@/lib/api";
 import { useAuthRedirect } from "@/lib/auth";
 
-type Tab = "explorar" | "anunciar" | "meus";
+type Tab = "explorar" | "anunciar" | "meus" | "salvos";
 
 const DESKTOP_TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "explorar", label: "Explorar", icon: "🔍" },
   { id: "anunciar", label: "Anunciar", icon: "➕" },
   { id: "meus", label: "Meus anúncios", icon: "📦" },
+  { id: "salvos", label: "Salvos", icon: "🔖" },
 ];
 
 const CARD_VARIANTS = [
@@ -38,7 +39,10 @@ const CARD_VARIANTS = [
 ] as const;
 
 function parseTab(value: string | null): Tab {
-  return value === "anunciar" || value === "meus" ? value : "explorar";
+  if (value === "anunciar" || value === "meus" || value === "salvos") {
+    return value;
+  }
+  return "explorar";
 }
 
 function AppShell() {
@@ -91,6 +95,7 @@ function AppShell() {
         {tab === "meus" && (
           <MyItemsTab view={searchParams.get("view")} />
         )}
+        {tab === "salvos" && <SavedItemsTab />}
       </main>
     </div>
   );
@@ -411,6 +416,67 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
         {submitting ? "Publicando..." : "Publicar anúncio"}
       </button>
     </form>
+  );
+}
+
+function SavedItemsTab() {
+  const { token, ready } = useAuthRedirect();
+  const [items, setItems] = useState<Item[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    setItems(null);
+    setError(false);
+    api
+      .getSavedItems(token)
+      .then((rows) => setItems(rows.map((r) => r.item)))
+      .catch(() => {
+        setItems([]);
+        setError(true);
+      });
+  }, [token]);
+
+  if (!ready || !token) return null;
+
+  return (
+    <div className="mx-auto flex max-w-5xl flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-bold text-navy">Salvos</h1>
+        <p className="text-sm text-muted">
+          Anúncios que você marcou interesse para negociar depois.
+        </p>
+      </div>
+
+      {error && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
+          Não foi possível carregar seus salvos.
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {items === null
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <ItemCardSkeleton key={i} />
+            ))
+          : items.map((item, i) => (
+              <Reveal
+                key={item.id}
+                delay={Math.min(i, 5) * 50}
+                variant={CARD_VARIANTS[i % CARD_VARIANTS.length]}
+              >
+                <ItemCard item={item} />
+              </Reveal>
+            ))}
+      </div>
+
+      {items?.length === 0 && !error && (
+        <p className="rounded-xl border border-dashed border-fog bg-white p-10 text-center text-sm text-muted">
+          Nenhum anúncio salvo ainda. Toque no marcador nos cards para guardar
+          o que te interessa.
+        </p>
+      )}
+    </div>
   );
 }
 

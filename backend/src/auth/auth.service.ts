@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { OAuth2Client } from 'google-auth-library';
 import { normalizeBrazilianPhone } from '../common/phone.util';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
@@ -46,6 +47,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {
     this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID')?.trim();
     this.googleClient = new OAuth2Client(this.googleClientId);
@@ -69,6 +71,7 @@ export class AuthService {
       data: { name: dto.name, email: dto.email, passwordHash, phone },
     });
 
+    await this.sendWelcome(user.id, user.name);
     return this.buildAuthResponse(user.id, true);
   }
 
@@ -145,6 +148,7 @@ export class AuthService {
             },
           });
           isNewUser = true;
+          await this.sendWelcome(user.id, user.name);
         }
       }
 
@@ -221,6 +225,16 @@ export class AuthService {
   async checkEmail(email: string) {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     return { exists: Boolean(existing) };
+  }
+
+  private async sendWelcome(userId: string, name: string) {
+    const first = name.trim().split(/\s+/)[0] || 'estudante';
+    await this.notifications.create(
+      userId,
+      'WELCOME',
+      `Bem-vindo ao Desapega UNIFOR, ${first}!`,
+      'Explore anúncios do campus, salve o que te interessa e publique o que não usa mais.',
+    );
   }
 
   private async buildAuthResponse(userId: string, isNewUser: boolean) {

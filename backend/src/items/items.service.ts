@@ -95,7 +95,7 @@ export class ItemsService {
       );
     }
 
-    return this.prisma.item.create({
+    const item = await this.prisma.item.create({
       data: {
         title: dto.title,
         description: dto.description,
@@ -108,6 +108,16 @@ export class ItemsService {
       },
       ...itemWithOwner,
     });
+
+    await this.notifications.create(
+      userId,
+      'ITEM_PUBLISHED',
+      'Anúncio publicado com sucesso',
+      `"${item.title}" já está visível para a comunidade do campus.`,
+      item.id,
+    );
+
+    return item;
   }
 
   async updateStatus(userId: string, id: string, dto: UpdateItemStatusDto) {
@@ -147,6 +157,15 @@ export class ItemsService {
           `Atualização em "${item.title}"`,
           STATUS_MESSAGES[dto.status] ?? 'O status deste anúncio mudou.',
           id,
+        );
+      }
+
+      if (dto.status === 'CONCLUIDO') {
+        await this.notifySavedWatchers(
+          id,
+          item.title,
+          item.isDonation,
+          negotiatingWithId,
         );
       }
     }
@@ -227,11 +246,18 @@ export class ItemsService {
       order = await this.prisma.itemInterest.create({
         data: { itemId, buyerId, ...orderData },
       });
+      const offerHint =
+        !item.isDonation && !acceptListedPrice && offeredPrice != null
+          ? ` Propôs ${Number(offeredPrice).toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            })}.`
+          : '';
       await this.notifications.create(
         item.userId,
         'NEW_INTEREST',
-        'Novo pedido no seu anúncio',
-        `${buyer?.name ?? 'Alguém'} enviou um pedido para "${item.title}".`,
+        'Nova proposta no seu anúncio',
+        `${buyer?.name ?? 'Alguém'} preencheu o formulário de interesse em "${item.title}".${offerHint} Veja em Meus anúncios → Pedidos.`,
         itemId,
       );
     }
@@ -348,6 +374,14 @@ export class ItemsService {
       ]);
 
       if (current !== 'NEGOCIANDO') {
+        await this.notifications.create(
+          order.buyerId,
+          'PROPOSAL_ACCEPTED',
+          'Sua proposta foi aceita!',
+          `O vendedor aceitou negociar "${order.item.title}" com você. Combine a entrega pelo WhatsApp.`,
+          order.itemId,
+        );
+
         const others = await this.prisma.itemInterest.findMany({
           where: {
             itemId: order.itemId,
@@ -360,7 +394,7 @@ export class ItemsService {
             others.map((o) => o.buyerId),
             'ITEM_STATUS_CHANGED',
             `Atualização em "${order.item.title}"`,
-            STATUS_MESSAGES.NEGOCIANDO,
+            'O vendedor começou a negociar com outra pessoa neste anúncio.',
             order.itemId,
           );
         }
@@ -415,11 +449,28 @@ export class ItemsService {
         await this.notifications.notifyMany(
           others.map((o) => o.buyerId),
           'ITEM_STATUS_CHANGED',
-          `Atualização em "${order.item.title}"`,
-          STATUS_MESSAGES.CONCLUIDO,
+          `"${order.item.title}" não está mais disponível`,
+          order.item.isDonation
+            ? 'Este item foi doado para outra pessoa.'
+            : 'Este item foi vendido para outra pessoa.',
           order.itemId,
         );
       }
+
+      await this.notifySavedWatchers(
+        order.itemId,
+        order.item.title,
+        order.item.isDonation,
+        order.buyerId,
+      );
+
+      await this.notifications.create(
+        order.buyerId,
+        'ORDER_DELIVERED',
+        order.item.isDonation ? 'Doação concluída!' : 'Compra concluída!',
+        `"${order.item.title}" foi marcado como entregue. Obrigado por usar o Desapega.`,
+        order.itemId,
+      );
 
       await this.notifications.create(
         order.buyerId,
@@ -454,6 +505,31 @@ export class ItemsService {
     }
 
     throw new BadRequestException('Status de pedido inválido.');
+  }
+
+  private async notifySavedWatchers(
+    itemId: string,
+    title: string,
+    isDonation: boolean,
+    excludeUserId?: string | null,
+  ) {
+    const saved = await this.prisma.savedItem.findMany({
+      where: {
+        itemId,
+        ...(excludeUserId ? { userId: { not: excludeUserId } } : {}),
+      },
+      select: { userId: true },
+    });
+    if (saved.length === 0) return;
+    await this.notifications.notifyMany(
+      saved.map((s) => s.userId),
+      'ITEM_SAVED_UPDATE',
+      `"${title}" saiu da sua lista`,
+      isDonation
+        ? 'Um anúncio que você salvou foi doado e não está mais disponível.'
+        : 'Um anúncio que você salvou foi vendido e não está mais disponível.',
+      itemId,
+    );
   }
 
   async remove(userId: string, id: string) {

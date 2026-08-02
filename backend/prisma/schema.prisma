@@ -43,6 +43,7 @@ model User {
   assignedTickets       SupportTicket[] @relation("TicketAssignee")
   reviewsGiven          Review[]       @relation("ReviewRater")
   reviewsReceived       Review[]       @relation("ReviewRated")
+  savedItems            SavedItem[]
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -81,12 +82,27 @@ model Item {
   negotiatingWith   User?      @relation("ItemNegotiation", fields: [negotiatingWithId], references: [id], onDelete: SetNull)
   negotiatingWithId String?
   interests         ItemInterest[]
+  savedBy           SavedItem[]
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
   @@index([userId])
   @@index([status])
   @@index([negotiatingWithId])
+}
+
+model SavedItem {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, itemId])
+  @@index([userId])
+  @@index([itemId])
 }
 
 enum OrderStatus {
@@ -137,8 +153,13 @@ model Review {
 }
 
 enum NotificationType {
+  WELCOME
+  ITEM_PUBLISHED
   NEW_INTEREST
+  PROPOSAL_ACCEPTED
   ITEM_STATUS_CHANGED
+  ITEM_SAVED_UPDATE
+  ORDER_DELIVERED
   REVIEW_REQUEST
   NEW_REVIEW
 }

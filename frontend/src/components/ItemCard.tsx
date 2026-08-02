@@ -10,6 +10,7 @@ import {
   type Item,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useSavedItems } from "@/lib/savedItems";
 
 interface ItemCardProps {
   item: Item;
@@ -19,8 +20,11 @@ interface ItemCardProps {
 
 export function ItemCard({ item, onDelete, deleting }: ItemCardProps) {
   const { user } = useAuth();
+  const { isSaved, toggleSave } = useSavedItems();
   const statusLabel = itemStatusLabel(item);
   const isOwn = Boolean(user && user.id === item.user.id);
+  const saved = isSaved(item.id);
+  const canSave = !isOwn && item.status !== "CONCLUIDO";
 
   return (
     <article
@@ -40,23 +44,48 @@ export function ItemCard({ item, onDelete, deleting }: ItemCardProps) {
             item.status === "CONCLUIDO" || isOwn ? "grayscale-[30%]" : ""
           }`}
         />
-        <span className="absolute left-3 top-3 max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm">
+        <span className="absolute left-3 top-3 max-w-[55%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm">
           {formatCategories(item.categories)}
         </span>
+
+        {canSave && (
+          <button
+            type="button"
+            aria-label={saved ? "Remover dos salvos" : "Salvar interesse"}
+            title={saved ? "Remover dos salvos" : "Salvar para negociar depois"}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              void toggleSave(item.id);
+            }}
+            className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-soft ${
+              saved
+                ? "bg-brand text-white"
+                : "bg-white/95 text-navy hover:bg-brand hover:text-white"
+            }`}
+          >
+            <BookmarkIcon className="h-4 w-4" filled={saved} />
+          </button>
+        )}
+
         {isOwn ? (
-          <span className="absolute right-3 top-3 rounded-full bg-slate-600/90 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-sm">
+          <span
+            className={`absolute top-3 rounded-full bg-slate-600/90 px-3 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-sm ${
+              canSave ? "right-14" : "right-3"
+            }`}
+          >
             Seu anúncio
           </span>
-        ) : item.isDonation && item.status !== "CONCLUIDO" && !statusLabel ? (
+        ) : item.isDonation && item.status !== "CONCLUIDO" && !statusLabel && !canSave ? (
           <span className="absolute right-3 top-3 rounded-full bg-brand px-3 py-1 text-xs font-semibold text-white shadow-sm">
             Doação
           </span>
         ) : null}
         {!isOwn && statusLabel && (
           <span
-            className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
-              item.status === "CONCLUIDO" ? "bg-navy/80" : "bg-amber-500"
-            }`}
+            className={`absolute rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
+              canSave ? "right-14 top-3" : "right-3 top-3"
+            } ${item.status === "CONCLUIDO" ? "bg-navy/80" : "bg-amber-500"}`}
           >
             {statusLabel}
           </span>
@@ -64,6 +93,11 @@ export function ItemCard({ item, onDelete, deleting }: ItemCardProps) {
         {isOwn && statusLabel && (
           <span className="absolute bottom-3 left-3 rounded-full bg-slate-500/85 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
             {statusLabel}
+          </span>
+        )}
+        {!isOwn && item.isDonation && item.status !== "CONCLUIDO" && canSave && (
+          <span className="absolute bottom-3 left-3 rounded-full bg-brand px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
+            Doação
           </span>
         )}
       </Link>
@@ -124,6 +158,26 @@ export function ItemCard({ item, onDelete, deleting }: ItemCardProps) {
         </div>
       )}
     </article>
+  );
+}
+
+function BookmarkIcon({
+  className,
+  filled,
+}: {
+  className?: string;
+  filled?: boolean;
+}) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-3.5L6 20V5.5a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        fill={filled ? "currentColor" : "none"}
+      />
+    </svg>
   );
 }
 

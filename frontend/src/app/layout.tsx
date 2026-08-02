@@ -7,6 +7,7 @@ import { MobileTabBarGlobal } from "@/components/MobileTabBarGlobal";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { AuthProvider } from "@/lib/auth";
 import { PendingReviewsProvider } from "@/lib/pendingReviews";
+import { SavedItemsProvider } from "@/lib/savedItems";
 
 const display = Outfit({
   variable: "--font-display",
@@ -49,11 +50,13 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans">
         <AuthProvider>
-          <PendingReviewsProvider>
-            <AppHeader />
-            <MainShell>{children}</MainShell>
-            <MobileTabBarGlobal />
-          </PendingReviewsProvider>
+          <SavedItemsProvider>
+            <PendingReviewsProvider>
+              <AppHeader />
+              <MainShell>{children}</MainShell>
+              <MobileTabBarGlobal />
+            </PendingReviewsProvider>
+          </SavedItemsProvider>
         </AuthProvider>
         <ServiceWorkerRegister />
       </body>

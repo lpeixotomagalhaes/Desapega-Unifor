@@ -20,6 +20,12 @@ const MENU_ITEMS = [
     icon: "grid",
   },
   {
+    href: "/app?tab=salvos",
+    label: "Salvos",
+    description: "Anúncios que você quer negociar",
+    icon: "bookmark",
+  },
+  {
     href: "/app?tab=meus&view=concluidos",
     label: "Minhas vendas / doações",
     description: "Itens já concluídos",
@@ -211,6 +217,18 @@ function MenuIcon({
         <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
         <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
         <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
+      </svg>
+    );
+  }
+  if (name === "bookmark") {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+        <path
+          d="M7 4.5h10a1 1 0 0 1 1 1V20l-6-3.5L6 20V5.5a1 1 0 0 1 1-1Z"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   }

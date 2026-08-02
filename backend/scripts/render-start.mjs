@@ -13,6 +13,7 @@ const MIGRATIONS = [
   '20260802190000_reviews_and_profiles',
   '20260802223000_item_categories_array',
   '20260802230000_user_last_seen',
+  '20260802234500_notifications_and_saved_items',
 ];
 
 function run(cmd, { inherit = true } = {}) {
