@@ -1,6 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+/** Considera online se esteve ativo nos últimos 5 minutos. */
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -11,8 +14,11 @@ export class UsersService {
       select: {
         id: true,
         name: true,
+        email: true,
+        phone: true,
         avatarUrl: true,
         bio: true,
+        lastSeenAt: true,
         createdAt: true,
       },
     });
@@ -20,7 +26,7 @@ export class UsersService {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    const [agg, reviews, activeItems] = await Promise.all([
+    const [agg, reviews, activeItems, completedDeals] = await Promise.all([
       this.prisma.review.aggregate({
         where: { ratedUserId: id },
         _avg: { rating: true },
@@ -51,14 +57,54 @@ export class UsersService {
           user: { select: { id: true, name: true } },
         },
       }),
+      this.prisma.itemInterest.findMany({
+        where: {
+          status: 'ENTREGUE',
+          item: { userId: id },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 40,
+        select: {
+          id: true,
+          updatedAt: true,
+          item: {
+            select: {
+              id: true,
+              title: true,
+              imageUrl: true,
+              isDonation: true,
+              price: true,
+              status: true,
+            },
+          },
+          buyer: { select: { id: true, name: true } },
+          review: {
+            select: {
+              id: true,
+              rating: true,
+              comment: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
     ]);
 
+    const online =
+      !!user.lastSeenAt &&
+      Date.now() - user.lastSeenAt.getTime() <= ONLINE_WINDOW_MS;
+
+    const { lastSeenAt, ...publicUser } = user;
+
     return {
-      user,
+      user: publicUser,
+      online,
+      lastSeenAt,
       ratingAvg: agg._avg.rating ? Number(agg._avg.rating.toFixed(1)) : null,
       ratingCount: agg._count.rating,
       reviews,
       activeItems,
+      completedDeals,
     };
   }
 }

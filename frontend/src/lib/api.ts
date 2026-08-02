@@ -144,14 +144,38 @@ export interface PendingReviewOrder {
   };
 }
 
+export interface ProfileCompletedDeal {
+  id: string;
+  updatedAt: string;
+  item: {
+    id: string;
+    title: string;
+    imageUrl: string;
+    isDonation: boolean;
+    price: string | null;
+    status: ItemStatus;
+  };
+  buyer: { id: string; name: string };
+  review: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+  } | null;
+}
+
 export interface PublicProfile {
   user: {
     id: string;
     name: string;
+    email: string;
+    phone: string | null;
     avatarUrl: string | null;
     bio: string | null;
     createdAt: string;
   };
+  online: boolean;
+  lastSeenAt: string | null;
   ratingAvg: number | null;
   ratingCount: number;
   reviews: Array<{
@@ -163,6 +187,7 @@ export interface PublicProfile {
     order: { item: { id: string; title: string } };
   }>;
   activeItems: Item[];
+  completedDeals: ProfileCompletedDeal[];
 }
 
 export type OrderStatus = "PENDENTE" | "NEGOCIANDO" | "ENTREGUE";

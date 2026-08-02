@@ -1,3 +1,13 @@
+/** Display helper for stored phones (often 55 + DDD + number). */
+export function formatBrazilianPhoneDisplay(raw: string | null | undefined): string {
+  if (!raw) return "Não informado";
+  const digits = raw.replace(/\D/g, "");
+  const national =
+    digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
+  if (national.length < 10) return raw;
+  return formatBrazilianPhoneInput(national);
+}
+
 /** Formats digits as the user types into a Brazilian phone mask: (85) 91234-5678. */
 export function formatBrazilianPhoneInput(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 11);

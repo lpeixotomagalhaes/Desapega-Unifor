@@ -224,8 +224,9 @@ export class AuthService {
   }
 
   private async buildAuthResponse(userId: string, isNewUser: boolean) {
-    const user = await this.prisma.user.findUniqueOrThrow({
+    const user = await this.prisma.user.update({
       where: { id: userId },
+      data: { lastSeenAt: new Date() },
       select: ME_SELECT,
     });
     const payload: JwtPayload = {
