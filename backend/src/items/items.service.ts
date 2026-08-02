@@ -35,7 +35,7 @@ export class ItemsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  findAll(query: QueryItemsDto) {
+  async findAll(query: QueryItemsDto) {
     const where: Prisma.ItemWhereInput = {
       status: { in: ['ATIVO', 'NEGOCIANDO'] },
     };
@@ -50,11 +50,14 @@ export class ItemsService {
       ];
     }
 
-    return this.prisma.item.findMany({
+    const items = await this.prisma.item.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       ...itemWithOwner,
     });
+
+    // Garante JSON seguro (Decimal do Prisma) no Render/Express
+    return JSON.parse(JSON.stringify(items)) as typeof items;
   }
 
   findMine(userId: string) {
