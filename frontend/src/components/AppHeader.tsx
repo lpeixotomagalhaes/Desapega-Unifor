@@ -49,10 +49,12 @@ function AppHeaderInner() {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/auth/");
 
-  // Sync input from ?q= when on /app (deep links + live URL updates)
+  // Sync input from ?q= when on /app; limpa ao sair da área de busca
   useEffect(() => {
     if (onApp) {
       setQuery(searchParams.get("q") ?? "");
+    } else {
+      setQuery("");
     }
   }, [onApp, searchParams]);
 
@@ -84,10 +86,16 @@ function AppHeaderInner() {
   const goSearch = useCallback(
     (value: string) => {
       const q = value.trim();
+      setQuery(q);
+      // Enter vazio → /app sem ?q= (todos os anúncios)
+      if (!q) {
+        router.push("/app");
+        setPanel(null);
+        return;
+      }
       const params = new URLSearchParams();
-      if (q) params.set("q", q);
-      const qs = params.toString();
-      router.push(qs ? `/app?${qs}` : "/app");
+      params.set("q", q);
+      router.push(`/app?${params.toString()}`);
       setPanel(null);
     },
     [router],
@@ -97,9 +105,9 @@ function AppHeaderInner() {
     setQuery(value);
     if (onApp) {
       const params = new URLSearchParams(searchParams.toString());
-      if (value.trim()) params.set("q", value);
+      if (value.trim()) params.set("q", value.trim());
       else params.delete("q");
-      // Searching switches to explorar
+      // Busca sempre no explorar (todos os anúncios se q vazio)
       params.delete("tab");
       const qs = params.toString();
       router.replace(qs ? `/app?${qs}` : "/app", { scroll: false });

@@ -18,7 +18,7 @@ export class AppController {
     };
   }
 
-  /** Diagnóstico temporário do 500 em /items (remover depois). */
+  /** Diagnóstico temporário (remover depois). */
   @Get('debug/items')
   async debugItems() {
     try {
@@ -37,6 +37,39 @@ export class AppController {
     } catch (error) {
       const err = error as Error & { code?: string; meta?: unknown };
       this.logger.error(`debug/items failed: ${err.message}`, err.stack);
+      return {
+        ok: false,
+        message: err.message,
+        code: err.code ?? null,
+        meta: err.meta ?? null,
+      };
+    }
+  }
+
+  @Get('debug/user-schema')
+  async debugUserSchema() {
+    try {
+      const cols = await this.prisma.$queryRaw<
+        Array<{ column_name: string; udt_name: string }>
+      >`
+        SELECT column_name, udt_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'User'
+        ORDER BY ordinal_position
+      `;
+      const sample = await this.prisma.user.findFirst({
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          bio: true,
+          googleId: true,
+        },
+      });
+      return { ok: true, columns: cols, sample };
+    } catch (error) {
+      const err = error as Error & { code?: string; meta?: unknown };
+      this.logger.error(`debug/user-schema failed: ${err.message}`, err.stack);
       return {
         ok: false,
         message: err.message,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -37,16 +38,17 @@ const ME_SELECT = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly googleClient: OAuth2Client;
+  private readonly googleClientId: string | undefined;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
   ) {
-    this.googleClient = new OAuth2Client(
-      this.config.get<string>('GOOGLE_CLIENT_ID'),
-    );
+    this.googleClientId = this.config.get<string>('GOOGLE_CLIENT_ID')?.trim();
+    this.googleClient = new OAuth2Client(this.googleClientId);
   }
 
   async register(dto: RegisterDto) {
@@ -86,7 +88,7 @@ export class AuthService {
   }
 
   async loginWithGoogle(dto: GoogleLoginDto) {
-    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+    const clientId = this.googleClientId;
     if (!clientId) {
       throw new BadRequestException(
         'Login com Google não está configurado no servidor.',
@@ -102,7 +104,9 @@ export class AuthService {
         audience: clientId,
       });
       payload = ticket.getPayload();
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Google token verification failed: ${message}`);
       throw new UnauthorizedException('Token do Google inválido ou expirado.');
     }
 
@@ -112,38 +116,60 @@ export class AuthService {
       );
     }
 
-    let user = await this.prisma.user.findUnique({
-      where: { googleId: payload.sub },
-    });
-    let isNewUser = false;
-
-    if (!user) {
-      const byEmail = await this.prisma.user.findUnique({
-        where: { email: payload.email },
+    try {
+      let user = await this.prisma.user.findUnique({
+        where: { googleId: payload.sub },
       });
+      let isNewUser = false;
 
-      if (byEmail) {
-        user = await this.prisma.user.update({
-          where: { id: byEmail.id },
-          data: {
-            googleId: payload.sub,
-            avatarUrl: byEmail.avatarUrl ?? payload.picture ?? null,
-          },
+      if (!user) {
+        const byEmail = await this.prisma.user.findUnique({
+          where: { email: payload.email },
         });
-      } else {
-        user = await this.prisma.user.create({
-          data: {
-            name: payload.name ?? payload.email.split('@')[0],
-            email: payload.email,
-            googleId: payload.sub,
-            avatarUrl: payload.picture ?? null,
-          },
-        });
-        isNewUser = true;
+
+        if (byEmail) {
+          user = await this.prisma.user.update({
+            where: { id: byEmail.id },
+            data: {
+              googleId: payload.sub,
+              avatarUrl: byEmail.avatarUrl ?? payload.picture ?? null,
+            },
+          });
+        } else {
+          user = await this.prisma.user.create({
+            data: {
+              name: payload.name ?? payload.email.split('@')[0],
+              email: payload.email,
+              googleId: payload.sub,
+              avatarUrl: payload.picture ?? null,
+            },
+          });
+          isNewUser = true;
+        }
       }
-    }
 
-    return this.buildAuthResponse(user.id, isNewUser);
+      return await this.buildAuthResponse(user.id, isNewUser);
+    } catch (error) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Google login DB/JWT failed: ${message}`);
+      if (
+        /column .* does not exist|P2022|P2010|Unknown arg/i.test(message)
+      ) {
+        throw new BadRequestException(
+          'Banco desatualizado para login Google (faltam colunas como role/bio). Rode o SQL de sync no Supabase.',
+        );
+      }
+      throw new BadRequestException(
+        'Não foi possível concluir o login com Google. Tente de novo.',
+      );
+    }
   }
 
   async me(userId: string) {
