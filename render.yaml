@@ -16,8 +16,8 @@ services:
     region: oregon
     rootDir: backend
     buildCommand: npm install --include=dev && npm run build
-    # baseline automático se o banco já existia sem histórico Prisma (P3005)
-    startCommand: node scripts/render-start.mjs
+    # Schema já aplicado no Supabase (SQL/manual). Evite migrate no start: causa P3005/hang no pooler.
+    startCommand: npm run start:prod
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
