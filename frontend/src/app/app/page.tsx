@@ -6,6 +6,7 @@ import { CampusDeliveryTip } from "@/components/CampusDeliveryTip";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
 import { ItemStatusTabs } from "@/components/ItemStatusTabs";
 import { OnboardingTour } from "@/components/OnboardingTour";
+import { Reveal } from "@/components/Reveal";
 import {
   api,
   ApiError,
@@ -19,11 +20,22 @@ import { useAuthRedirect } from "@/lib/auth";
 
 type Tab = "explorar" | "anunciar" | "meus";
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
+const DESKTOP_TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "explorar", label: "Explorar", icon: "🔍" },
   { id: "anunciar", label: "Anunciar", icon: "➕" },
   { id: "meus", label: "Meus anúncios", icon: "📦" },
 ];
+
+const CARD_VARIANTS = [
+  "slide-up",
+  "slide-left",
+  "zoom-in",
+  "slide-right",
+  "fade-up",
+  "scale",
+  "slide-up",
+  "slide-left",
+] as const;
 
 function parseTab(value: string | null): Tab {
   return value === "anunciar" || value === "meus" ? value : "explorar";
@@ -48,12 +60,11 @@ function AppShell() {
   );
 
   return (
-    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col bg-mist md:max-w-6xl">
+    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col bg-mist md:max-w-7xl">
       <OnboardingTour />
 
-      {/* Desktop: navegação por abas no topo do conteúdo (a barra inferior é só mobile) */}
       <nav className="hidden gap-1 border-b border-fog px-4 pt-2 md:flex">
-        {TABS.map((t) => (
+        {DESKTOP_TABS.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -72,7 +83,7 @@ function AppShell() {
         ))}
       </nav>
 
-      <main className="flex-1 animate-fade-up px-4 pb-24 pt-4 md:pb-10">
+      <main className="flex-1 animate-fade-up px-4 pb-6 pt-4 md:pb-10">
         {tab === "explorar" && <ExploreTab search={search} />}
         {tab === "anunciar" && (
           <NewItemTab onCreated={() => selectTab("meus")} />
@@ -81,33 +92,6 @@ function AppShell() {
           <MyItemsTab view={searchParams.get("view")} />
         )}
       </main>
-
-      {/* Mobile: barra de abas inferior, estilo app */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-fog bg-white/95 backdrop-blur md:hidden">
-        <div className="mx-auto flex max-w-3xl">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => selectTab(t.id)}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-semibold transition-soft ${
-                tab === t.id
-                  ? "text-navy"
-                  : "text-muted hover:text-brand"
-              }`}
-            >
-              <span
-                className={`text-lg leading-none transition-soft ${
-                  tab === t.id ? "scale-110" : ""
-                }`}
-              >
-                {t.icon}
-              </span>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
     </div>
   );
 }
@@ -173,14 +157,24 @@ function ExploreTab({ search }: { search: string }) {
             ? Array.from({ length: 8 }).map((_, i) => (
                 <ItemCardSkeleton key={i} />
               ))
-            : items.map((item) => <ItemCard key={item.id} item={item} />)}
+            : items.map((item, i) => (
+                <Reveal
+                  key={item.id}
+                  delay={Math.min(i, 7) * 55}
+                  variant={CARD_VARIANTS[i % CARD_VARIANTS.length]}
+                >
+                  <ItemCard item={item} />
+                </Reveal>
+              ))}
         </div>
       )}
 
       {items?.length === 0 && (
-        <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
-          Nenhum item encontrado. Tente outra busca ou categoria.
-        </p>
+        <Reveal variant="fade-up">
+          <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
+            Nenhum item encontrado. Tente outra busca ou categoria.
+          </p>
+        </Reveal>
       )}
     </div>
   );
@@ -461,8 +455,14 @@ function MyItemsTab({ view }: { view: string | null }) {
     setItems(
       (prev) => prev?.map((item) => (item.id === updated.id ? updated : item)) ?? null,
     );
-    // O status pode ter mudado o comprador em negociação — recarrega os interesses.
-    api.getMyInterests(token).then(setInterests).catch(() => setError(true));
+  };
+
+  const handleInterestUpdated = (updated: ItemInterest) => {
+    setInterests(
+      (prev) =>
+        prev?.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)) ??
+        null,
+    );
   };
 
   return (
@@ -485,6 +485,7 @@ function MyItemsTab({ view }: { view: string | null }) {
         initialTab={initialTab}
         onDeleteItem={handleDelete}
         onItemUpdated={handleItemUpdated}
+        onInterestUpdated={handleInterestUpdated}
       />
     </div>
   );

@@ -22,4 +22,9 @@ export class UpdateMeDto {
   @IsOptional()
   @IsUrl({}, { message: 'URL de avatar inválida.' })
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(280, { message: 'A bio deve ter no máximo 280 caracteres.' })
+  bio?: string;
 }

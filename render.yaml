@@ -16,7 +16,8 @@ services:
     region: oregon
     rootDir: backend
     buildCommand: npm install --include=dev && npm run build
-    startCommand: npm run start:prod
+    # migrate deploy aplica roles/pedidos/reviews no Supabase a cada deploy
+    startCommand: npx prisma migrate deploy && npm run start:prod
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
@@ -30,6 +31,8 @@ services:
       - key: CORS_ORIGIN
         sync: false
       - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
         sync: false
 
   - type: web

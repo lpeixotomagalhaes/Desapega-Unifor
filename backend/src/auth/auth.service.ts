@@ -14,11 +14,13 @@ import { GoogleLoginDto } from './dto/google-login.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
+import type { UserRole } from '../generated/prisma/enums';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   name: string;
+  role: UserRole;
 }
 
 const ME_SELECT = {
@@ -27,6 +29,8 @@ const ME_SELECT = {
   email: true,
   phone: true,
   avatarUrl: true,
+  bio: true,
+  role: true,
   onboardingCompletedAt: true,
   createdAt: true,
 } as const;
@@ -154,9 +158,17 @@ export class AuthService {
   }
 
   async updateMe(userId: string, dto: UpdateMeDto) {
-    const data: { name?: string; phone?: string; avatarUrl?: string } = {};
+    const data: {
+      name?: string;
+      phone?: string;
+      avatarUrl?: string;
+      bio?: string | null;
+    } = {};
     if (dto.name) data.name = dto.name;
     if (dto.avatarUrl) data.avatarUrl = dto.avatarUrl;
+    if (dto.bio !== undefined) {
+      data.bio = dto.bio.trim() ? dto.bio.trim() : null;
+    }
     if (dto.phone) {
       const phone = normalizeBrazilianPhone(dto.phone);
       if (!phone) {
@@ -194,6 +206,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       name: user.name,
+      role: user.role,
     };
     return {
       accessToken: this.jwtService.sign(payload),

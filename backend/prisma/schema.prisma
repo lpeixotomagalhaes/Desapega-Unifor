@@ -10,6 +10,19 @@ datasource db {
   // URLs configuradas em prisma.config.ts (DATABASE_URL / DIRECT_URL)
 }
 
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
 model User {
   id                    String    @id @default(cuid())
   name                  String
@@ -18,15 +31,22 @@ model User {
   googleId              String?   @unique
   avatarUrl             String?
   phone                 String?
+  bio                   String?
+  role                  UserRole  @default(USER)
   onboardingCompletedAt DateTime?
   items                 Item[]         @relation("ItemOwner")
   negotiations          Item[]         @relation("ItemNegotiation")
   interests             ItemInterest[]
   notifications         Notification[]
+  supportTickets        SupportTicket[] @relation("TicketAuthor")
+  assignedTickets       SupportTicket[] @relation("TicketAssignee")
+  reviewsGiven          Review[]       @relation("ReviewRater")
+  reviewsReceived       Review[]       @relation("ReviewRated")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
   @@index([googleId])
+  @@index([role])
 }
 
 enum Category {
@@ -67,23 +87,58 @@ model Item {
   @@index([negotiatingWithId])
 }
 
+enum OrderStatus {
+  PENDENTE
+  NEGOCIANDO
+  ENTREGUE
+}
+
 model ItemInterest {
-  id        String   @id @default(cuid())
-  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  itemId    String
-  buyer     User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
-  buyerId   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String      @id @default(cuid())
+  item              Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId            String
+  buyer             User        @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyerId           String
+  course            String      @default("")
+  enrollment        String      @default("")
+  acceptListedPrice Boolean     @default(true)
+  offeredPrice      Decimal?    @db.Decimal(10, 2)
+  meetupDay         String      @default("")
+  meetupTime        String      @default("")
+  campusBlock       String      @default("")
+  status            OrderStatus @default(PENDENTE)
+  review            Review?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   @@unique([itemId, buyerId])
   @@index([itemId])
   @@index([buyerId])
+  @@index([status])
+}
+
+model Review {
+  id          String       @id @default(cuid())
+  order       ItemInterest @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String       @unique
+  rater       User         @relation("ReviewRater", fields: [raterId], references: [id], onDelete: Cascade)
+  raterId     String
+  ratedUser   User         @relation("ReviewRated", fields: [ratedUserId], references: [id], onDelete: Cascade)
+  ratedUserId String
+  rating      Int
+  comment     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([ratedUserId])
+  @@index([raterId])
 }
 
 enum NotificationType {
   NEW_INTEREST
   ITEM_STATUS_CHANGED
+  REVIEW_REQUEST
+  NEW_REVIEW
 }
 
 model Notification {
@@ -100,4 +155,22 @@ model Notification {
 
   @@index([userId])
   @@index([userId, readAt])
+}
+
+model SupportTicket {
+  id              String              @id @default(cuid())
+  user            User                @relation("TicketAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+  subject         String
+  message         String
+  status          SupportTicketStatus @default(OPEN)
+  adminReply      String?
+  assignedAdmin   User?               @relation("TicketAssignee", fields: [assignedAdminId], references: [id], onDelete: SetNull)
+  assignedAdminId String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([assignedAdminId])
 }

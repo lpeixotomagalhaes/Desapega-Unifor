@@ -33,6 +33,33 @@ async function main() {
     },
   });
 
+  // SUPER_ADMIN: promove e-mail de SUPER_ADMIN_EMAIL, ou cria admin@edu.unifor.br em seed local.
+  const superEmail = (
+    process.env.SUPER_ADMIN_EMAIL ?? 'admin@edu.unifor.br'
+  ).trim().toLowerCase();
+  const superPassword = process.env.SUPER_ADMIN_PASSWORD ?? 'admin123456';
+
+  const existingSuper = await prisma.user.findUnique({
+    where: { email: superEmail },
+  });
+  if (existingSuper) {
+    await prisma.user.update({
+      where: { id: existingSuper.id },
+      data: { role: 'SUPER_ADMIN' },
+    });
+  } else {
+    await prisma.user.create({
+      data: {
+        name: 'Super Admin',
+        email: superEmail,
+        passwordHash: await bcrypt.hash(superPassword, 10),
+        phone: '5585999999999',
+        role: 'SUPER_ADMIN',
+        onboardingCompletedAt: new Date(),
+      },
+    });
+  }
+
   const items: Array<{
     title: string;
     description: string;
@@ -106,7 +133,9 @@ async function main() {
     }
   }
 
-  console.log('Seed concluído: usuário demo@edu.unifor.br (senha 123456) e itens de exemplo.');
+  console.log(
+    `Seed concluído: demo@edu.unifor.br (123456) + SUPER_ADMIN ${superEmail}.`,
+  );
 }
 
 main()

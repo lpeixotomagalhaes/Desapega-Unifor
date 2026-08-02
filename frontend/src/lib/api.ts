@@ -1,5 +1,5 @@
 export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3002";
 
 export const CATEGORIES = {
   LIVROS: "Livros",
@@ -19,7 +19,7 @@ export interface Item {
   id: string;
   title: string;
   description: string;
-  categories: Category[];
+  categories?: Category[];
   price: string | null;
   isDonation: boolean;
   imageUrl: string;
@@ -36,13 +36,64 @@ export interface Stats {
   users: number;
 }
 
+export type UserRole = "USER" | "ADMIN" | "SUPER_ADMIN";
+
+export type SupportTicketStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "RESOLVED"
+  | "CLOSED";
+
 export interface SessionUser {
   id: string;
   name: string;
   email: string;
   phone: string | null;
   avatarUrl: string | null;
+  bio?: string | null;
+  role?: UserRole;
   onboardingCompletedAt: string | null;
+}
+
+export interface AdminStats {
+  users: number;
+  activeItems: number;
+  donations: number;
+  negotiating: number;
+  concluded: number;
+  openTickets: number;
+  byCategory: Array<{ category: Category; count: number }>;
+}
+
+export interface AdminUserRow {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  subject: string;
+  message: string;
+  status: SupportTicketStatus;
+  adminReply: string | null;
+  assignedAdminId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; name: string; email: string };
+  assignedAdmin?: { id: string; name: string; email: string } | null;
+}
+
+export function isAdmin(user: SessionUser | null | undefined): boolean {
+  return user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+}
+
+export function isSuperAdmin(user: SessionUser | null | undefined): boolean {
+  return user?.role === "SUPER_ADMIN";
 }
 
 export interface AuthResponse {
@@ -71,18 +122,86 @@ export interface UpdateMeInput {
   name?: string;
   phone?: string;
   avatarUrl?: string;
+  bio?: string;
 }
+
+export type NotificationType =
+  | "NEW_INTEREST"
+  | "ITEM_STATUS_CHANGED"
+  | "REVIEW_REQUEST"
+  | "NEW_REVIEW";
+
+export interface PendingReviewOrder {
+  id: string;
+  itemId: string;
+  status: OrderStatus;
+  updatedAt?: string;
+  item: {
+    id: string;
+    title: string;
+    imageUrl: string;
+    user: { id: string; name: string; avatarUrl: string | null };
+  };
+}
+
+export interface PublicProfile {
+  user: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+    bio: string | null;
+    createdAt: string;
+  };
+  ratingAvg: number | null;
+  ratingCount: number;
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+    rater: { id: string; name: string; avatarUrl: string | null };
+    order: { item: { id: string; title: string } };
+  }>;
+  activeItems: Item[];
+}
+
+export type OrderStatus = "PENDENTE" | "NEGOCIANDO" | "ENTREGUE";
 
 export interface ItemInterest {
   id: string;
   itemId: string;
   buyerId: string;
+  course: string;
+  enrollment: string;
+  acceptListedPrice: boolean;
+  offeredPrice: string | null;
+  meetupDay: string;
+  meetupTime: string;
+  campusBlock: string;
+  status: OrderStatus;
   createdAt: string;
-  item: { id: string; title: string; imageUrl: string; status: ItemStatus };
+  updatedAt?: string;
+  item: {
+    id: string;
+    title: string;
+    imageUrl: string;
+    status: ItemStatus;
+    price?: string | null;
+    isDonation?: boolean;
+  };
   buyer: { id: string; name: string };
 }
 
-export type NotificationType = "NEW_INTEREST" | "ITEM_STATUS_CHANGED";
+export interface CreateOrderInput {
+  course: string;
+  enrollment: string;
+  acceptListedPrice: boolean;
+  offeredPrice?: number;
+  meetupDay: string;
+  meetupTime: string;
+  campusBlock: string;
+  customBlock?: string;
+}
 
 export interface AppNotification {
   id: string;
@@ -162,7 +281,16 @@ export const api = {
       Array<{
         id: string;
         createdAt: string;
+        status: OrderStatus;
+        course: string;
+        enrollment: string;
+        meetupDay: string;
+        meetupTime: string;
+        campusBlock: string;
+        acceptListedPrice: boolean;
+        offeredPrice: string | null;
         item: Item;
+        review: { id: string; rating: number } | null;
       }>
     >("/items/mine/purchases", { token }),
 
@@ -195,11 +323,32 @@ export const api = {
       token,
     }),
 
-  expressInterest: (token: string, id: string) =>
-    request<{ whatsappUrl: string }>(`/items/${id}/interest`, {
-      method: "POST",
+  createOrder: (token: string, id: string, data: CreateOrderInput) =>
+    request<{ order: ItemInterest; whatsappUrl: string }>(
+      `/items/${id}/orders`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+        token,
+      },
+    ),
+
+  updateOrderStatus: (token: string, orderId: string, status: OrderStatus) =>
+    request<ItemInterest>(`/items/orders/${orderId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
       token,
     }),
+
+  /** @deprecated Prefer createOrder */
+  expressInterest: (token: string, id: string) =>
+    request<{ order: ItemInterest; whatsappUrl: string }>(
+      `/items/${id}/interest`,
+      {
+        method: "POST",
+        token,
+      },
+    ),
 
   deleteItem: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/items/${id}`, { method: "DELETE", token }),
@@ -256,6 +405,105 @@ export const api = {
       method: "PATCH",
       token,
     }),
+
+  getPendingReviews: (token: string) =>
+    request<PendingReviewOrder[]>("/reviews/pending", { token }),
+
+  createReview: (
+    token: string,
+    data: { orderId: string; rating: number; comment?: string },
+  ) =>
+    request<{ id: string }>("/reviews", {
+      method: "POST",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  getUserProfile: (id: string) =>
+    request<PublicProfile>(`/users/${id}/profile`),
+
+  createSupportTicket: (
+    token: string,
+    data: { subject: string; message: string },
+  ) =>
+    request<SupportTicket>("/support/tickets", {
+      method: "POST",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  getMySupportTickets: (token: string) =>
+    request<SupportTicket[]>("/support/tickets/mine", { token }),
+
+  getAdminStats: (token: string) =>
+    request<AdminStats>("/admin/stats", { token }),
+
+  getAdminUsers: (
+    token: string,
+    params?: { page?: number; limit?: number; role?: UserRole; email?: string },
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.role) query.set("role", params.role);
+    if (params?.email) query.set("email", params.email);
+    const qs = query.toString();
+    return request<{
+      total: number;
+      page: number;
+      limit: number;
+      users: AdminUserRow[];
+    }>(`/admin/users${qs ? `?${qs}` : ""}`, { token });
+  },
+
+  getAdminAdmins: (token: string) =>
+    request<
+      Array<{
+        id: string;
+        name: string;
+        email: string;
+        role: UserRole;
+        createdAt: string;
+      }>
+    >("/admin/admins", { token }),
+
+  promoteAdmin: (token: string, email: string) =>
+    request<{
+      id: string;
+      name: string;
+      email: string;
+      role: UserRole;
+      createdAt: string;
+    }>("/admin/admins", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+      token,
+    }),
+
+  revokeAdmin: (token: string, id: string) =>
+    request<{
+      id: string;
+      name: string;
+      email: string;
+      role: UserRole;
+      createdAt: string;
+    }>(`/admin/admins/${id}/revoke`, { method: "PATCH", token }),
+
+  getAdminSupportTickets: (token: string, status?: SupportTicketStatus) => {
+    const qs = status ? `?status=${status}` : "";
+    return request<SupportTicket[]>(`/admin/support${qs}`, { token });
+  },
+
+  updateAdminSupportTicket: (
+    token: string,
+    id: string,
+    data: { status?: SupportTicketStatus; adminReply?: string },
+  ) =>
+    request<SupportTicket>(`/admin/support/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      token,
+    }),
 };
 
 export function formatPrice(item: Item): string {
@@ -267,8 +515,9 @@ export function formatPrice(item: Item): string {
   });
 }
 
-export function formatCategories(categories: Category[]): string {
-  return categories.map((c) => CATEGORIES[c]).join(" · ");
+export function formatCategories(categories?: Category[] | null): string {
+  if (!categories?.length) return "Sem categoria";
+  return categories.map((c) => CATEGORIES[c] ?? c).join(" · ");
 }
 
 export function itemStatusLabel(item: Item): string | null {

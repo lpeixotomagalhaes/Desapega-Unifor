@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -12,7 +13,7 @@ import { formatBrazilianPhoneInput, isValidBrazilianPhone } from "@/lib/phone";
 import { isPasswordValid } from "@/lib/passwordRules";
 
 const inputClass =
-  "w-full rounded-xl border border-fog bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "w-full rounded-lg border border-[#c5d5e8] bg-white px-3.5 py-2.5 text-sm text-navy outline-none transition-soft placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20";
 const inputErrorClass = "border-red-300 focus:border-red-400 focus:ring-red-100";
 
 type FieldErrors = Partial<Record<"name" | "email" | "password" | "phone", string>>;
@@ -46,6 +47,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const isLogin = mode === "login";
   const returnUrlParam = searchParams.get("returnUrl");
@@ -54,7 +56,6 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
     ? `?returnUrl=${encodeURIComponent(postAuthDestination(returnUrlParam))}`
     : "";
 
-  // Já autenticado (ex.: sessão ficou presa na tela de login) → sai daqui
   useEffect(() => {
     if (loading || !user || !token) return;
     window.location.assign(destination);
@@ -83,7 +84,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
         clearFieldError("email");
       }
     } catch {
-      // Checagem best-effort — não bloqueia o preenchimento se a API falhar.
+      // best-effort
     } finally {
       setCheckingEmail(false);
     }
@@ -91,8 +92,6 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
 
   const handleAuthSuccess = (auth: AuthResponse) => {
     signIn(auth);
-    // Navegação completa evita o soft-nav do App Router ficar preso em /login
-    // com o botão "Aguarde..." enquanto o header já mostra o usuário logado.
     window.location.assign(destination);
   };
 
@@ -137,177 +136,239 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
   };
 
   return (
-    <div className="hero-glow flex min-h-full flex-1 flex-col items-center justify-center px-4 py-10">
-      <Link
-        href="/"
-        className="mb-8 flex animate-fade-up flex-col items-center gap-3"
-      >
-        <BrandLogo variant="horizontal" height={44} priority />
-        <span className="font-[family-name:var(--font-display)] text-xl font-bold text-white">
-          Desapega UNIFOR
-        </span>
-      </Link>
-
-      <form
-        onSubmit={handleSubmit}
-        className="animate-fade-up delay-2 flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/15 bg-white p-6 shadow-2xl"
-      >
-        <h1 className="font-[family-name:var(--font-display)] text-xl font-bold text-navy">
-          {isLogin ? "Entrar" : "Criar conta"}
-        </h1>
-
-        <GoogleSignInButton
-          onSuccess={handleAuthSuccess}
-          onError={setGeneralError}
+    <div className="relative flex min-h-[calc(100dvh-4.75rem)] flex-1 overflow-hidden bg-[#d5e6f6] lg:min-h-[calc(100dvh-5.25rem)]">
+      {/* Esquerda: campus + overlay azul (SSO Unifor) */}
+      <div className="auth-bg-fade absolute inset-0 lg:right-[38%]">
+        <Image
+          src="/auth/campus-photo.jpg"
+          alt=""
+          fill
+          priority
+          sizes="(max-width: 1024px) 100vw, 62vw"
+          className="auth-bg-motion object-cover object-center"
         />
+        <div className="absolute inset-0 bg-[rgb(0_74_247_/0.3)]" />
+      </div>
 
-        <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-muted">
-          <span className="h-px flex-1 bg-fog" />
-          ou {isLogin ? "entre" : "cadastre-se"} com e-mail
-          <span className="h-px flex-1 bg-fog" />
-        </div>
+      {/* Direita: painel claro com formas (desktop) */}
+      <div className="auth-panel absolute inset-y-0 right-0 hidden w-[38%] lg:block" />
 
-        {!isLogin && (
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-            Nome
-            <input
-              required
-              minLength={2}
-              maxLength={80}
-              value={form.name}
-              onChange={(e) => {
-                setForm({ ...form, name: e.target.value });
-                clearFieldError("name");
-              }}
-              placeholder="Seu nome"
-              className={`${inputClass} ${fieldErrors.name ? inputErrorClass : ""}`}
-            />
-            {fieldErrors.name && (
-              <span className="text-xs text-red-600">{fieldErrors.name}</span>
+      <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 items-center justify-center px-4 py-10 sm:px-6 lg:justify-end lg:pr-[4%] xl:pr-[6%]">
+        <form
+          onSubmit={handleSubmit}
+          className="animate-fade-up delay-1 flex w-full max-w-[26rem] flex-col gap-4 rounded-2xl border border-white/15 bg-white p-6 shadow-2xl sm:p-8"
+        >
+          <div className="animate-fade-up flex flex-col items-center gap-3 text-center">
+            <BrandLogo mark="blue" height={40} priority />
+            <div>
+              <h1 className="font-[family-name:var(--font-display)] text-xl font-bold text-navy sm:text-2xl">
+                {isLogin ? "Acesse sua conta" : "Crie sua conta"}
+              </h1>
+              <p className="mt-1 text-sm text-muted">
+                {isLogin
+                  ? "Entre e desapegue no campus em um só lugar"
+                  : "Cadastre-se e comece a anunciar no Desapega UNIFOR"}
+              </p>
+            </div>
+          </div>
+
+          <div className="animate-fade-up delay-2">
+            <GoogleSignInButton onError={setGeneralError} />
+          </div>
+
+          <div className="animate-fade-up delay-2 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
+            <span className="h-px flex-1 bg-fog" />
+            ou {isLogin ? "entre" : "cadastre-se"} com e-mail
+            <span className="h-px flex-1 bg-fog" />
+          </div>
+
+          <div className="animate-fade-up delay-3 flex flex-col gap-3.5">
+            {!isLogin && (
+              <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+                Nome
+                <input
+                  required
+                  minLength={2}
+                  maxLength={80}
+                  value={form.name}
+                  onChange={(e) => {
+                    setForm({ ...form, name: e.target.value });
+                    clearFieldError("name");
+                  }}
+                  placeholder="Seu nome"
+                  className={`${inputClass} ${fieldErrors.name ? inputErrorClass : ""}`}
+                />
+                {fieldErrors.name && (
+                  <span className="text-xs text-red-600">{fieldErrors.name}</span>
+                )}
+              </label>
             )}
-          </label>
-        )}
 
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-          E-mail
-          <input
-            required
-            type="email"
-            value={form.email}
-            onChange={(e) => {
-              setForm({ ...form, email: e.target.value });
-              clearFieldError("email");
-            }}
-            onBlur={handleEmailBlur}
-            placeholder="voce@edu.unifor.br"
-            className={`${inputClass} ${fieldErrors.email ? inputErrorClass : ""}`}
-          />
-          {checkingEmail && (
-            <span className="text-xs text-muted">Verificando e-mail...</span>
+            <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+              E-mail
+              <input
+                required
+                type="email"
+                value={form.email}
+                onChange={(e) => {
+                  setForm({ ...form, email: e.target.value });
+                  clearFieldError("email");
+                }}
+                onBlur={handleEmailBlur}
+                placeholder="voce@edu.unifor.br"
+                className={`${inputClass} ${fieldErrors.email ? inputErrorClass : ""}`}
+              />
+              {checkingEmail && (
+                <span className="text-xs text-muted">Verificando e-mail...</span>
+              )}
+              {fieldErrors.email && (
+                <span className="text-xs text-red-600">
+                  {fieldErrors.email}{" "}
+                  {!isLogin && (
+                    <Link
+                      href={`/login${authLinkQs}`}
+                      className="font-semibold underline"
+                    >
+                      Entrar
+                    </Link>
+                  )}
+                </span>
+              )}
+            </label>
+
+            {!isLogin && (
+              <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+                WhatsApp
+                <input
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  value={form.phone}
+                  onChange={(e) => {
+                    setForm({
+                      ...form,
+                      phone: formatBrazilianPhoneInput(e.target.value),
+                    });
+                    clearFieldError("phone");
+                  }}
+                  placeholder="(85) 91234-5678"
+                  className={`${inputClass} ${fieldErrors.phone ? inputErrorClass : ""}`}
+                />
+                <span className="text-xs text-muted">
+                  Usado só para quem tem interesse falar com você.
+                </span>
+                {fieldErrors.phone && (
+                  <span className="text-xs text-red-600">{fieldErrors.phone}</span>
+                )}
+              </label>
+            )}
+
+            <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+              Senha
+              <div className="relative">
+                <input
+                  required
+                  type={showPassword ? "text" : "password"}
+                  minLength={isLogin ? 1 : 8}
+                  value={form.password}
+                  onChange={(e) => {
+                    setForm({ ...form, password: e.target.value });
+                    clearFieldError("password");
+                  }}
+                  onFocus={() => setPasswordFocused(true)}
+                  placeholder={isLogin ? "Senha" : "Mínimo 8 caracteres"}
+                  className={`${inputClass} pr-11 ${fieldErrors.password ? inputErrorClass : ""}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-muted transition-soft hover:text-navy"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              {!isLogin && (passwordFocused || form.password) && (
+                <PasswordChecklist password={form.password} />
+              )}
+              {fieldErrors.password && (
+                <span className="text-xs text-red-600">{fieldErrors.password}</span>
+              )}
+            </label>
+          </div>
+
+          {generalError && (
+            <p className="animate-fade-in rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {generalError}
+            </p>
           )}
-          {fieldErrors.email && (
-            <span className="text-xs text-red-600">
-              {fieldErrors.email}{" "}
-              {!isLogin && (
-                <Link href={`/login${authLinkQs}`} className="font-semibold underline">
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="animate-fade-up delay-3 mt-1 rounded-lg bg-brand py-3 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition-soft hover:-translate-y-0.5 hover:bg-brand-bright disabled:cursor-wait disabled:opacity-70"
+          >
+            {submitting ? (
+              <WaitingLabel />
+            ) : isLogin ? (
+              "Acessar"
+            ) : (
+              "Criar conta"
+            )}
+          </button>
+
+          <p className="text-center text-sm text-muted">
+            {isLogin ? (
+              <>
+                Ainda não tem conta?{" "}
+                <Link
+                  href={`/registro${authLinkQs}`}
+                  className="font-semibold text-brand hover:underline"
+                >
+                  Cadastre-se
+                </Link>
+              </>
+            ) : (
+              <>
+                Já tem conta?{" "}
+                <Link
+                  href={`/login${authLinkQs}`}
+                  className="font-semibold text-brand hover:underline"
+                >
                   Entrar
                 </Link>
-              )}
-            </span>
-          )}
-        </label>
-
-        {!isLogin && (
-          <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-            WhatsApp
-            <input
-              required
-              type="tel"
-              inputMode="tel"
-              value={form.phone}
-              onChange={(e) => {
-                setForm({ ...form, phone: formatBrazilianPhoneInput(e.target.value) });
-                clearFieldError("phone");
-              }}
-              placeholder="(85) 91234-5678"
-              className={`${inputClass} ${fieldErrors.phone ? inputErrorClass : ""}`}
-            />
-            <span className="text-xs text-muted">
-              Usado só para quem tem interesse falar com você — obrigatório para anunciar.
-            </span>
-            {fieldErrors.phone && (
-              <span className="text-xs text-red-600">{fieldErrors.phone}</span>
+              </>
             )}
-          </label>
-        )}
-
-        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-          Senha
-          <input
-            required
-            type="password"
-            minLength={isLogin ? 1 : 8}
-            value={form.password}
-            onChange={(e) => {
-              setForm({ ...form, password: e.target.value });
-              clearFieldError("password");
-            }}
-            onFocus={() => setPasswordFocused(true)}
-            placeholder={isLogin ? "Sua senha" : "Mínimo 8 caracteres"}
-            className={`${inputClass} ${fieldErrors.password ? inputErrorClass : ""}`}
-          />
-          {!isLogin && (passwordFocused || form.password) && (
-            <PasswordChecklist password={form.password} />
-          )}
-          {fieldErrors.password && (
-            <span className="text-xs text-red-600">{fieldErrors.password}</span>
-          )}
-        </label>
-
-        {generalError && (
-          <p className="animate-fade-in rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {generalError}
           </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-xl bg-navy py-3 font-semibold text-white shadow-sm transition-soft hover:-translate-y-0.5 hover:bg-brand disabled:cursor-wait disabled:opacity-70"
-        >
-          {submitting ? (
-            <WaitingLabel />
-          ) : isLogin ? (
-            "Entrar"
-          ) : (
-            "Criar conta"
-          )}
-        </button>
-
-        <p className="text-center text-sm text-muted">
-          {isLogin ? (
-            <>
-              Ainda não tem conta?{" "}
-              <Link
-                href={`/registro${authLinkQs}`}
-                className="font-semibold text-brand hover:underline"
-              >
-                Cadastre-se
-              </Link>
-            </>
-          ) : (
-            <>
-              Já tem conta?{" "}
-              <Link
-                href={`/login${authLinkQs}`}
-                className="font-semibold text-brand hover:underline"
-              >
-                Entrar
-              </Link>
-            </>
-          )}
-        </p>
-      </form>
+        </form>
+      </div>
     </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <circle cx="12" cy="12" r="2.75" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3 3l18 18M10.5 10.6a2.75 2.75 0 0 0 3.9 3.9M7.1 7.3C4.6 8.7 2.5 12 2.5 12s3.5 6.5 9.5 6.5c1.5 0 2.9-.3 4.1-.8M16.7 15.4C19.1 14 21.5 12 21.5 12s-3.5-6.5-9.5-6.5c-.7 0-1.4.05-2 .16"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

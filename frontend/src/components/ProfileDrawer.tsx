@@ -27,14 +27,14 @@ const MENU_ITEMS = [
   },
   {
     href: "/conta/compras",
-    label: "Minhas compras",
-    description: "Itens em que você demonstrou interesse",
+    label: "Meus pedidos",
+    description: "Pedidos e avaliações pendentes",
     icon: "bag",
   },
   {
     href: "/conta",
     label: "Minha conta",
-    description: "Nome, e-mail e WhatsApp",
+    description: "Nome, e-mail, WhatsApp e bio",
     icon: "user",
   },
 ] as const;
@@ -104,6 +104,25 @@ export function ProfileDrawer({
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <ul className="flex flex-col gap-0.5">
+            <li>
+              <Link
+                href={`/perfil/${user.id}`}
+                onClick={onClose}
+                className="flex items-center gap-3 rounded-xl px-3 py-3 transition-soft hover:bg-mist"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-mist text-navy">
+                  <MenuIcon name="user" className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-navy">
+                    Ver meu perfil público
+                  </span>
+                  <span className="block text-xs text-muted">
+                    Avaliações e anúncios ativos
+                  </span>
+                </span>
+              </Link>
+            </li>
             {MENU_ITEMS.map((item) => (
               <li key={item.href}>
                 <Link

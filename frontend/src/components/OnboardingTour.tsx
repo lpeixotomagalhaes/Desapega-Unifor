@@ -29,7 +29,7 @@ const STEPS: Step[] = [
   {
     emoji: "💬",
     title: "Combine tudo pelo WhatsApp",
-    body: "Ao clicar em “Tenho interesse”, você abre uma conversa no WhatsApp com quem anunciou. Combine local e horário no campus e pague somente depois de conferir o item.",
+    body: "No anúncio, preencha o formulário de pedido (curso, valor e encontro no campus). Enviamos os dados no WhatsApp do vendedor e o pedido fica pendente até a confirmação.",
   },
 ];
 

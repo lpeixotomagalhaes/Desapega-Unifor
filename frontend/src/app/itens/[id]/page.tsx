@@ -2,12 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { CampusDeliveryTip } from "@/components/CampusDeliveryTip";
+import { InterestOrderForm } from "@/components/InterestOrderForm";
 import {
   api,
-  ApiError,
   CATEGORIES,
   formatCategories,
   formatPrice,
@@ -20,14 +20,9 @@ import { CAMPUS_DELIVERY_SUPPORT_FAQ } from "@/lib/campusDelivery";
 
 export default function ItemDetailPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const { user, token, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [item, setItem] = useState<Item | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [interestState, setInterestState] = useState<
-    "idle" | "sending" | "sent"
-  >("idle");
-  const [interestError, setInterestError] = useState<string | null>(null);
 
   const id = params.id;
 
@@ -48,39 +43,9 @@ export default function ItemDetailPage() {
     };
   }, [id]);
 
-  const handleInterest = useCallback(async () => {
-    if (authLoading) return;
-    const returnUrl = `/itens/${id}`;
-
-    if (!user || !token) {
-      router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
-      return;
-    }
-    if (!user.phone) {
-      router.push(`/completar-perfil?returnUrl=${encodeURIComponent(returnUrl)}`);
-      return;
-    }
-
-    setInterestError(null);
-    setInterestState("sending");
-    try {
-      const { whatsappUrl } = await api.expressInterest(token, id);
-      setInterestState("sent");
-      window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-    } catch (err) {
-      setInterestState("idle");
-      setInterestError(
-        err instanceof ApiError
-          ? err.message
-          : "Não foi possível registrar seu interesse.",
-      );
-    }
-  }, [authLoading, user, token, id, router]);
-
   if (notFound) {
     return (
       <div className="mx-auto flex max-w-2xl flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-        <span className="text-4xl">🔎</span>
         <h1 className="text-xl font-bold text-navy">Anúncio não encontrado</h1>
         <p className="text-muted">
           Esse item pode ter sido removido ou já foi concluído.
@@ -111,17 +76,8 @@ export default function ItemDetailPage() {
     );
   }
 
-  const isOwner = user?.id === item.user.id;
   const isConcluded = item.status === "CONCLUIDO";
   const statusLabel = itemStatusLabel(item);
-
-  let ctaLabel = "Tenho interesse";
-  if (isOwner) ctaLabel = "Este é o seu anúncio";
-  else if (isConcluded) ctaLabel = statusLabel ?? "Indisponível";
-  else if (interestState === "sending") ctaLabel = "Abrindo WhatsApp...";
-  else if (interestState === "sent") ctaLabel = "Abrir WhatsApp novamente";
-
-  const ctaDisabled = isOwner || isConcluded || interestState === "sending";
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:py-8">
@@ -162,10 +118,17 @@ export default function ItemDetailPage() {
               {item.title}
             </h1>
             <p className="mt-1 text-sm text-muted">
-              Anunciado por {item.user.name}
+              Anunciado por{" "}
+              <Link
+                href={`/perfil/${item.user.id}`}
+                className="font-medium text-navy transition-soft hover:text-brand hover:underline"
+              >
+                {item.user.name}
+              </Link>
+              {user?.id === item.user.id ? " (você)" : ""}
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {item.categories.map((c) => (
+              {(item.categories ?? []).map((c) => (
                 <span
                   key={c}
                   className="rounded-full border border-fog bg-mist px-2.5 py-0.5 text-xs font-semibold text-navy/80"
@@ -191,43 +154,25 @@ export default function ItemDetailPage() {
 
           <CampusDeliveryTip variant="form" />
 
-          <div className="mt-2 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={handleInterest}
-              disabled={ctaDisabled}
-              className="rounded-xl bg-navy py-3.5 font-semibold text-white shadow-sm transition-soft hover:-translate-y-0.5 hover:bg-brand disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-            >
-              {ctaLabel}
-            </button>
-            {interestError && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
-                {interestError}
-              </p>
-            )}
-            <p className="text-xs leading-relaxed text-muted">
-              Vocês combinam local e horário no campus pelo WhatsApp. Pague
-              somente após conferir o item pessoalmente — a Unifor não se
-              responsabiliza por negociações feitas fora da plataforma.
-            </p>
-          </div>
+          <InterestOrderForm item={item} />
 
           <details className="group rounded-xl border border-fog bg-white px-4 py-3">
             <summary className="cursor-pointer list-none text-sm font-semibold text-navy marker:content-none">
               <span className="inline-flex items-center gap-1.5">
                 Dicas de segurança para o encontro
-                <span className="text-muted transition-soft group-open:rotate-180" aria-hidden>
+                <span
+                  className="text-muted transition-soft group-open:rotate-180"
+                  aria-hidden
+                >
                   ▾
                 </span>
               </span>
             </summary>
-            <ul className="mt-3 space-y-2.5">
+            <ul className="mt-3 space-y-2.5 border-t border-fog pt-3">
               {CAMPUS_DELIVERY_SUPPORT_FAQ.map((tip) => (
-                <li key={tip.title} className="rounded-lg bg-mist/80 px-3 py-2">
-                  <p className="text-xs font-semibold text-navy">{tip.title}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-muted">
-                    {tip.body}
-                  </p>
+                <li key={tip.title}>
+                  <p className="text-sm font-medium text-navy">{tip.title}</p>
+                  <p className="text-xs text-muted">{tip.body}</p>
                 </li>
               ))}
             </ul>

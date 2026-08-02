@@ -34,6 +34,7 @@ export function BrandLogo({
         height={height}
         className={`object-contain ${className}`}
         priority={priority}
+        style={{ height, width: "auto" }}
       />
     );
   }
@@ -53,6 +54,7 @@ export function BrandLogo({
       height={height}
       className={`object-contain ${className}`}
       priority={priority}
+      style={{ height, width: "auto" }}
     />
   );
 }
@@ -66,11 +68,28 @@ export function DesapegaWordmark({
 }) {
   const color = tone === "light" ? "text-white" : "text-navy";
   return (
-    <span className={`font-semibold tracking-tight ${color} ${className}`}>
+    <span
+      className={`font-[family-name:var(--font-display)] font-bold tracking-tight ${color} ${className}`}
+    >
       Desapega{" "}
       <span className={tone === "light" ? "text-white/80" : "text-brand"}>
         UNIFOR
       </span>
     </span>
+  );
+}
+
+/** Subtítulo sob a wordmark no header. */
+export const BRAND_TAGLINE = "Projeto Vortex";
+
+export function BrandTagline({
+  className = "",
+}: {
+  className?: string;
+}) {
+  return (
+    <p className={`font-medium leading-tight text-muted ${className}`}>
+      {BRAND_TAGLINE}
+    </p>
   );
 }

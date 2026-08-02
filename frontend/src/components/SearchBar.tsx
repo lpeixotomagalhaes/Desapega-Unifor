@@ -178,13 +178,13 @@ export function SearchBar({
                 ? "Buscar livros, calculadoras, jalecos..."
                 : undefined
             }
-            className="w-full rounded-full border border-fog bg-mist/70 py-2 pl-3.5 pr-10 text-sm outline-none transition-soft focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20 sm:py-2.5 sm:pl-4 sm:pr-11"
+            className="w-full rounded-full border border-fog bg-mist/70 py-2.5 pl-4 pr-12 text-base outline-none transition-soft focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20 sm:py-3 sm:pr-14"
           />
           {!focused && !value.trim() && <AnimatedPlaceholder />}
           <button
             type="submit"
             aria-label="Buscar"
-            className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-navy text-white transition-soft hover:bg-brand sm:h-9 sm:w-9"
+            className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-navy text-white transition-soft hover:bg-brand sm:h-10 sm:w-10"
           >
             <SearchIcon className="h-4 w-4" />
           </button>
@@ -254,9 +254,9 @@ function AnimatedPlaceholder() {
     return (
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 left-3.5 right-11 flex items-center sm:left-4 sm:right-12"
+        className="pointer-events-none absolute inset-y-0 left-4 right-12 flex items-center sm:left-4 sm:right-14"
       >
-        <span className="truncate text-sm text-muted/80">
+        <span className="truncate text-base text-muted/80">
           {PLACEHOLDER_PREFIX}
           {PLACEHOLDER_TERMS[0] ?? ""}
           {PLACEHOLDER_SUFFIX}
@@ -268,9 +268,9 @@ function AnimatedPlaceholder() {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute inset-y-0 left-3.5 right-11 flex items-center sm:left-4 sm:right-12"
+      className="pointer-events-none absolute inset-y-0 left-4 right-12 flex items-center sm:left-4 sm:right-14"
     >
-      <span className="truncate text-sm text-muted/80">
+      <span className="truncate text-base text-muted/80">
         {PLACEHOLDER_PREFIX}
         {typed}
         <span className="placeholder-caret" />
@@ -298,7 +298,7 @@ function SearchSuggestions({
       id={id}
       role="listbox"
       aria-label="Sugestões de busca"
-      className="absolute inset-x-0 top-full z-40 mt-1.5 max-h-72 overflow-auto rounded-xl border border-fog bg-white py-1.5 shadow-lg"
+      className="absolute inset-x-0 top-full z-40 mt-1.5 max-h-72 overflow-auto rounded-xl border border-fog bg-white py-1.5 shadow-lg animate-fade-in"
     >
       {items.map((item, index) => {
         const active = index === highlight;

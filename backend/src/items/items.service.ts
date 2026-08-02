@@ -10,8 +10,11 @@ import type { Prisma } from '../generated/prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateItemDto } from './dto/create-item.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryItemsDto } from './dto/query-items.dto';
 import { UpdateItemStatusDto } from './dto/update-item-status.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import type { OrderStatus } from '../generated/prisma/enums';
 
 const itemWithOwner = {
   include: {
@@ -148,9 +151,9 @@ export class ItemsService {
     return updated;
   }
 
-  async expressInterest(buyerId: string, id: string) {
+  async createOrder(buyerId: string, itemId: string, dto: CreateOrderDto) {
     const item = await this.prisma.item.findUnique({
-      where: { id },
+      where: { id: itemId },
       include: { user: { select: { id: true, name: true, phone: true } } },
     });
     if (!item) {
@@ -158,7 +161,7 @@ export class ItemsService {
     }
     if (item.userId === buyerId) {
       throw new BadRequestException(
-        'Você não pode se interessar pelo seu próprio anúncio.',
+        'Você não pode pedir o seu próprio anúncio.',
       );
     }
     if (item.status === 'CONCLUIDO') {
@@ -170,27 +173,95 @@ export class ItemsService {
       );
     }
 
+    const campusBlock =
+      dto.campusBlock === 'Outro' && dto.customBlock?.trim()
+        ? dto.customBlock.trim()
+        : dto.campusBlock.trim();
+
+    const acceptListedPrice = item.isDonation ? true : dto.acceptListedPrice;
+    let offeredPrice: number | null = null;
+    if (!item.isDonation && !acceptListedPrice) {
+      if (dto.offeredPrice == null) {
+        throw new BadRequestException(
+          'Informe o valor que está disposto a pagar, ou aceite o valor anunciado.',
+        );
+      }
+      offeredPrice = dto.offeredPrice;
+    }
+
+    const orderData = {
+      course: dto.course.trim(),
+      enrollment: dto.enrollment.trim(),
+      acceptListedPrice,
+      offeredPrice,
+      meetupDay: dto.meetupDay.trim(),
+      meetupTime: dto.meetupTime.trim(),
+      campusBlock,
+      status: 'PENDENTE' as const,
+    };
+
     const existing = await this.prisma.itemInterest.findUnique({
-      where: { itemId_buyerId: { itemId: id, buyerId } },
+      where: { itemId_buyerId: { itemId, buyerId } },
     });
 
-    if (!existing) {
-      const buyer = await this.prisma.user.findUnique({
-        where: { id: buyerId },
-        select: { name: true },
+    const buyer = await this.prisma.user.findUnique({
+      where: { id: buyerId },
+      select: { name: true },
+    });
+
+    let order;
+    if (existing) {
+      if (existing.status === 'ENTREGUE') {
+        throw new ConflictException(
+          'Este pedido já foi concluído. Não é possível reenviar.',
+        );
+      }
+      order = await this.prisma.itemInterest.update({
+        where: { id: existing.id },
+        data: orderData,
       });
-      await this.prisma.itemInterest.create({ data: { itemId: id, buyerId } });
+    } else {
+      order = await this.prisma.itemInterest.create({
+        data: { itemId, buyerId, ...orderData },
+      });
       await this.notifications.create(
         item.userId,
         'NEW_INTEREST',
-        'Novo interesse no seu anúncio',
-        `${buyer?.name ?? 'Alguém'} demonstrou interesse em "${item.title}".`,
-        id,
+        'Novo pedido no seu anúncio',
+        `${buyer?.name ?? 'Alguém'} enviou um pedido para "${item.title}".`,
+        itemId,
       );
     }
 
-    const message = `Oi! Vi seu anúncio "${item.title}" no Desapega UNIFOR e tenho interesse.`;
-    return { whatsappUrl: buildWhatsAppUrl(item.user.phone, message) };
+    const valueLine = item.isDonation
+      ? 'Valor: doação'
+      : acceptListedPrice
+        ? `Valor: aceito o valor anunciado${
+            item.price != null
+              ? ` (${Number(item.price).toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })})`
+              : ''
+          }`
+        : `Valor disposto a pagar: ${Number(offeredPrice).toLocaleString(
+            'pt-BR',
+            { style: 'currency', currency: 'BRL' },
+          )}`;
+
+    const message = [
+      `Oi! Vi seu anúncio "${item.title}" no Desapega UNIFOR.`,
+      '',
+      `Curso: ${orderData.course}`,
+      `Matrícula: ${orderData.enrollment}`,
+      valueLine,
+      `Encontro: ${orderData.meetupDay} às ${orderData.meetupTime} — ${orderData.campusBlock}`,
+    ].join('\n');
+
+    return {
+      order,
+      whatsappUrl: buildWhatsAppUrl(item.user.phone, message),
+    };
   }
 
   findMyInterests(userId: string) {
@@ -199,14 +270,21 @@ export class ItemsService {
       orderBy: { createdAt: 'desc' },
       include: {
         item: {
-          select: { id: true, title: true, imageUrl: true, status: true },
+          select: {
+            id: true,
+            title: true,
+            imageUrl: true,
+            status: true,
+            price: true,
+            isDonation: true,
+          },
         },
         buyer: { select: { id: true, name: true } },
       },
     });
   }
 
-  /** Interesses que o usuário (comprador) expressou em anúncios de outros. */
+  /** Pedidos que o usuário (comprador) enviou em anúncios de outros. */
   findMyPurchases(buyerId: string) {
     return this.prisma.itemInterest.findMany({
       where: { buyerId },
@@ -217,8 +295,162 @@ export class ItemsService {
             user: { select: { id: true, name: true } },
           },
         },
+        review: { select: { id: true, rating: true } },
       },
     });
+  }
+
+  async updateOrderStatus(
+    sellerId: string,
+    orderId: string,
+    dto: UpdateOrderStatusDto,
+  ) {
+    const order = await this.prisma.itemInterest.findUnique({
+      where: { id: orderId },
+      include: {
+        item: true,
+        buyer: { select: { id: true, name: true } },
+      },
+    });
+    if (!order) {
+      throw new NotFoundException('Pedido não encontrado.');
+    }
+    if (order.item.userId !== sellerId) {
+      throw new ForbiddenException(
+        'Você só pode atualizar pedidos dos seus anúncios.',
+      );
+    }
+
+    const next = dto.status as OrderStatus;
+    const current = order.status;
+
+    if (next === 'NEGOCIANDO') {
+      if (current !== 'PENDENTE' && current !== 'NEGOCIANDO') {
+        throw new BadRequestException(
+          'Só é possível negociar um pedido pendente.',
+        );
+      }
+      const [updatedOrder] = await this.prisma.$transaction([
+        this.prisma.itemInterest.update({
+          where: { id: orderId },
+          data: { status: 'NEGOCIANDO' },
+        }),
+        this.prisma.item.update({
+          where: { id: order.itemId },
+          data: {
+            status: 'NEGOCIANDO',
+            negotiatingWithId: order.buyerId,
+          },
+        }),
+      ]);
+
+      if (current !== 'NEGOCIANDO') {
+        const others = await this.prisma.itemInterest.findMany({
+          where: {
+            itemId: order.itemId,
+            buyerId: { not: order.buyerId },
+          },
+          select: { buyerId: true },
+        });
+        if (others.length > 0) {
+          await this.notifications.notifyMany(
+            others.map((o) => o.buyerId),
+            'ITEM_STATUS_CHANGED',
+            `Atualização em "${order.item.title}"`,
+            STATUS_MESSAGES.NEGOCIANDO,
+            order.itemId,
+          );
+        }
+      }
+
+      return this.prisma.itemInterest.findUniqueOrThrow({
+        where: { id: updatedOrder.id },
+        include: {
+          item: {
+            select: {
+              id: true,
+              title: true,
+              imageUrl: true,
+              status: true,
+              price: true,
+              isDonation: true,
+            },
+          },
+          buyer: { select: { id: true, name: true } },
+        },
+      });
+    }
+
+    if (next === 'ENTREGUE') {
+      if (current !== 'NEGOCIANDO') {
+        throw new BadRequestException(
+          'Confirme a negociação antes de marcar como entregue.',
+        );
+      }
+      const [updatedOrder] = await this.prisma.$transaction([
+        this.prisma.itemInterest.update({
+          where: { id: orderId },
+          data: { status: 'ENTREGUE' },
+        }),
+        this.prisma.item.update({
+          where: { id: order.itemId },
+          data: {
+            status: 'CONCLUIDO',
+            negotiatingWithId: order.buyerId,
+          },
+        }),
+      ]);
+
+      const others = await this.prisma.itemInterest.findMany({
+        where: {
+          itemId: order.itemId,
+          buyerId: { not: order.buyerId },
+        },
+        select: { buyerId: true },
+      });
+      if (others.length > 0) {
+        await this.notifications.notifyMany(
+          others.map((o) => o.buyerId),
+          'ITEM_STATUS_CHANGED',
+          `Atualização em "${order.item.title}"`,
+          STATUS_MESSAGES.CONCLUIDO,
+          order.itemId,
+        );
+      }
+
+      await this.notifications.create(
+        order.buyerId,
+        'REVIEW_REQUEST',
+        'Avalie o vendedor',
+        `O pedido de "${order.item.title}" foi entregue. Conte como foi a experiência.`,
+        order.itemId,
+      );
+
+      return this.prisma.itemInterest.findUniqueOrThrow({
+        where: { id: updatedOrder.id },
+        include: {
+          item: {
+            select: {
+              id: true,
+              title: true,
+              imageUrl: true,
+              status: true,
+              price: true,
+              isDonation: true,
+            },
+          },
+          buyer: { select: { id: true, name: true } },
+        },
+      });
+    }
+
+    if (next === 'PENDENTE') {
+      throw new BadRequestException(
+        'Não é possível voltar um pedido para pendente por esta rota.',
+      );
+    }
+
+    throw new BadRequestException('Status de pedido inválido.');
   }
 
   async remove(userId: string, id: string) {

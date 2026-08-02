@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import type { UserRole } from '../generated/prisma/enums';
 import type { JwtPayload } from './auth.service';
 
 export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
+  role: UserRole;
 }
 
 @Injectable()
@@ -22,6 +24,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   // O retorno é anexado em request.user pelo Passport
   validate(payload: JwtPayload): AuthenticatedUser {
-    return { id: payload.sub, email: payload.email, name: payload.name };
+    return {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      role: payload.role ?? 'USER',
+    };
   }
 }

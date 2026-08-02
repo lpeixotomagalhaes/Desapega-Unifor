@@ -13,8 +13,10 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
 import { CreateItemDto } from './dto/create-item.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryItemsDto } from './dto/query-items.dto';
 import { UpdateItemStatusDto } from './dto/update-item-status.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ItemsService } from './items.service';
 
 @Controller('items')
@@ -38,10 +40,26 @@ export class ItemsController {
     return this.itemsService.findMyInterests(user.id);
   }
 
+  @Get('mine/orders')
+  @UseGuards(JwtAuthGuard)
+  findMyOrders(@CurrentUser() user: AuthenticatedUser) {
+    return this.itemsService.findMyInterests(user.id);
+  }
+
   @Get('mine/purchases')
   @UseGuards(JwtAuthGuard)
   findMyPurchases(@CurrentUser() user: AuthenticatedUser) {
     return this.itemsService.findMyPurchases(user.id);
+  }
+
+  @Patch('orders/:orderId/status')
+  @UseGuards(JwtAuthGuard)
+  updateOrderStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('orderId') orderId: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    return this.itemsService.updateOrderStatus(user.id, orderId, dto);
   }
 
   @Get(':id')
@@ -65,13 +83,31 @@ export class ItemsController {
     return this.itemsService.updateStatus(user.id, id, dto);
   }
 
+  @Post(':id/orders')
+  @UseGuards(JwtAuthGuard)
+  createOrder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateOrderDto,
+  ) {
+    return this.itemsService.createOrder(user.id, id, dto);
+  }
+
+  /** @deprecated Prefer POST /items/:id/orders */
   @Post(':id/interest')
   @UseGuards(JwtAuthGuard)
-  expressInterest(
+  expressInterestLegacy(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.itemsService.expressInterest(user.id, id);
+    return this.itemsService.createOrder(user.id, id, {
+      course: 'Não informado',
+      enrollment: 'Não informado',
+      acceptListedPrice: true,
+      meetupDay: 'A combinar',
+      meetupTime: 'A combinar',
+      campusBlock: 'A combinar',
+    });
   }
 
   @Delete(':id')

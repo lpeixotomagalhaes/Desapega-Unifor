@@ -38,7 +38,7 @@ npm install
 npx prisma db push     # sincroniza o schema com o banco (no-op se já estiver criado)
 npx prisma generate
 npm run seed        # opcional: popula o banco com dados de exemplo
-npm run start:dev   # API em http://localhost:3001
+npm run start:dev   # API em http://localhost:3002 (evita conflito com Prisma Streams na 3001)
 ```
 
 > **Dica — rodar sem o Supabase:** para desenvolver offline, rode `npx prisma dev`
@@ -169,10 +169,12 @@ O banco continua no **Supabase**. A **API NestJS** sobe no **Render**; o **front
 | `JWT_SECRET` | string longa e aleatória (Generate no Render) |
 | `CORS_ORIGIN` | URL do frontend (ex. `https://desapega-web.onrender.com`) — pode preencher depois do passo 2 |
 | `GOOGLE_CLIENT_ID` | (opcional) mesmo Client ID do Google Cloud |
+| `SUPER_ADMIN_EMAIL` | (opcional) e-mail de um usuário já cadastrado para promover a SUPER_ADMIN no seed |
 
 4. **Health Check Path:** `/`
-5. Clique em **Create Web Service** e aguarde o deploy (logs verdes + `API rodando na porta ...`)
-6. Anote a URL pública, ex.: `https://desapega-api.onrender.com`
+5. **Start Command** (se criar manualmente): `npx prisma migrate deploy && npm run start:prod` — aplica migrations no Supabase antes de subir a API
+6. Clique em **Create Web Service** e aguarde o deploy (logs verdes + `API rodando na porta ...`)
+7. Anote a URL pública, ex.: `https://desapega-api.onrender.com`
 
 Teste rápido: abra `https://SEU-API.onrender.com/` — deve retornar JSON com `"status":"ok"` e `"db":"up"`.
 
@@ -212,9 +214,9 @@ npx vercel --prod --yes \
 1. No Render (**desapega-api → Environment**), defina:
    - `CORS_ORIGIN=https://SEU-APP.vercel.app` (URL exata da Vercel, sem barra no final)
 2. Redeploy da API (Manual Deploy → Deploy latest commit) — ou aguarde o restart automático ao salvar env
-3. Se usar login Google, no [Google Cloud Console](https://console.cloud.google.com/apis/credentials) adicione em **Authorized JavaScript origins**:
-   - `https://desapega-unifor-vert.vercel.app` (produção atual)
-   - `http://localhost:3000` (local)
+3. Se usar login Google, no [Google Cloud Console](https://console.cloud.google.com/apis/credentials) adicione:
+   - **Authorized JavaScript origins:** `https://desapega-unifor-vert.vercel.app` e `http://localhost:3000`
+   - **Authorized redirect URIs:** `https://desapega-unifor-vert.vercel.app/auth/google/callback` e `http://localhost:3000/auth/google/callback`
 4. No **Render** (`desapega-api` → Environment), confirme `GOOGLE_CLIENT_ID` com o **mesmo** Client ID do Google (sem isso `/auth/google` falha em produção).
 
 ### Cloudflare (opcional — precisa de domínio próprio)

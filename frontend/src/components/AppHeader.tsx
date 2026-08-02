@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
-import { BrandLogo, DesapegaWordmark } from "@/components/BrandLogo";
+import { BrandLogo, BrandTagline, DesapegaWordmark } from "@/components/BrandLogo";
 import { ProfileAvatar, ProfileDrawer } from "@/components/ProfileDrawer";
 import { SearchBar } from "@/components/SearchBar";
+import { SupportComplaintModal } from "@/components/SupportComplaintModal";
 import type { AppNotification } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useNotifications } from "@/lib/notifications";
@@ -23,7 +24,7 @@ export function AppHeader() {
 function AppHeaderSkeleton() {
   return (
     <header className="sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-[61px] max-w-6xl items-center px-4" />
+      <div className="mx-auto flex h-[72px] max-w-7xl items-center px-4 sm:h-[80px]" />
     </header>
   );
 }
@@ -37,10 +38,16 @@ function AppHeaderInner() {
   const [query, setQuery] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const notifId = useId();
 
   const onApp = pathname === "/app" || pathname.startsWith("/app/");
+  const isAdminSurface =
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/auth/");
 
   // Sync input from ?q= when on /app (deep links + live URL updates)
   useEffect(() => {
@@ -48,6 +55,13 @@ function AppHeaderInner() {
       setQuery(searchParams.get("q") ?? "");
     }
   }, [onApp, searchParams]);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     if (!panel) return;
@@ -100,42 +114,84 @@ function AppHeaderInner() {
     });
   };
 
+  if (isAdminSurface) {
+    return null;
+  }
+
   if (!user) {
+    const isAuthPage =
+      pathname.startsWith("/login") ||
+      pathname.startsWith("/registro") ||
+      pathname.startsWith("/completar-perfil");
+
     return (
       <header
         ref={headerRef}
-        className="sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur"
+        className={`header-animate sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur transition-soft ${
+          scrolled ? "header-scrolled" : ""
+        }`}
       >
-        <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
-          <Link href="/" className="group flex shrink-0 items-center gap-2 sm:gap-2.5">
+        <div
+          className={`mx-auto max-w-7xl items-center gap-x-3 gap-y-2.5 px-3 py-3 sm:gap-x-4 sm:px-5 sm:py-3.5 ${
+            isAuthPage
+              ? "flex"
+              : "grid grid-cols-[auto_1fr_auto] md:flex md:gap-4"
+          }`}
+        >
+          <Link
+            href="/"
+            className="header-nav-item group col-start-1 row-start-1 flex shrink-0 items-center gap-2.5 sm:gap-3"
+            style={{ animationDelay: "0.05s" }}
+          >
             <BrandLogo
               mark="blue"
-              height={28}
-              className="transition-soft group-hover:scale-105"
+              height={40}
+              className="transition-soft group-hover:opacity-90"
             />
-            <div className="hidden min-[380px]:block">
-              <DesapegaWordmark className="text-sm sm:text-base" />
-              <p className="text-[10px] font-medium leading-none text-muted">
-                Unifor · campus
-              </p>
+            <div className="hidden min-[360px]:block">
+              <DesapegaWordmark className="text-base leading-tight sm:text-lg md:text-xl" />
+              <BrandTagline className="mt-0.5 text-xs sm:text-sm" />
             </div>
           </Link>
 
-          <SearchBar value={query} onChange={handleChange} onSubmitSearch={goSearch} />
+          {!isAuthPage && (
+            <div
+              className="header-nav-item col-span-3 row-start-2 min-w-0 md:order-none md:col-auto md:row-auto md:flex-1"
+              style={{ animationDelay: "0.1s" }}
+            >
+              <SearchBar
+                value={query}
+                onChange={handleChange}
+                onSubmitSearch={goSearch}
+              />
+              <BrandTagline className="mt-1.5 text-xs md:hidden" />
+            </div>
+          )}
 
-          <nav className="flex shrink-0 items-center gap-1.5">
+          <nav
+            className="header-nav-item col-start-3 row-start-1 ml-auto flex shrink-0 items-center gap-2 md:ml-0"
+            style={{ animationDelay: "0.16s" }}
+          >
             <Link
               href="/login"
-              className="rounded-full border border-navy/25 px-3.5 py-1.5 text-sm font-semibold text-navy transition-soft hover:border-brand hover:text-brand"
+              className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-soft sm:px-4 sm:text-base ${
+                pathname.startsWith("/login")
+                  ? "border-brand bg-brand/5 text-brand"
+                  : "border-navy/25 text-navy hover:border-brand hover:text-brand"
+              }`}
             >
               Entrar
             </Link>
             <Link
               href="/registro"
-              className="inline-flex items-center gap-1.5 rounded-full bg-navy px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-soft hover:bg-brand sm:px-4 sm:py-2"
+              className={`hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition-soft sm:inline-flex sm:px-5 sm:py-2.5 sm:text-base ${
+                pathname.startsWith("/registro")
+                  ? "bg-brand hover:bg-brand-bright"
+                  : "bg-navy hover:bg-brand"
+              }`}
             >
-              <PlusCircleIcon className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">Anunciar</span>
+              <PlusCircleIcon className="h-5 w-5 shrink-0" />
+              {pathname.startsWith("/registro") ? "Criar conta" : "Anunciar"}
             </Link>
           </nav>
         </div>
@@ -147,34 +203,59 @@ function AppHeaderInner() {
     <>
       <header
         ref={headerRef}
-        className="sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur"
+        className={`header-animate sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur transition-soft ${
+          scrolled ? "header-scrolled" : ""
+        }`}
       >
-        <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
-          <Link href="/" className="group flex shrink-0 items-center gap-2 sm:gap-2.5">
+        <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2.5 px-3 py-3 sm:gap-x-4 sm:px-5 sm:py-3.5 md:flex md:gap-4">
+          <Link
+            href="/"
+            className="header-nav-item group col-start-1 row-start-1 flex shrink-0 items-center gap-2.5 sm:gap-3"
+            style={{ animationDelay: "0.05s" }}
+          >
             <BrandLogo
               mark="blue"
-              height={28}
-              className="transition-soft group-hover:scale-105"
+              height={40}
+              className="transition-soft group-hover:opacity-90"
             />
-            <div className="hidden min-[380px]:block">
-              <DesapegaWordmark className="text-sm sm:text-base" />
-              <p className="text-[10px] font-medium leading-none text-muted">
-                Unifor · campus
-              </p>
+            <div className="hidden min-[360px]:block">
+              <DesapegaWordmark className="text-base leading-tight sm:text-lg md:text-xl" />
+              <BrandTagline className="mt-0.5 hidden text-xs sm:text-sm md:block" />
             </div>
           </Link>
 
-          <SearchBar
-            value={query}
-            onChange={handleChange}
-            onSubmitSearch={goSearch}
-          />
+          <div
+            className="header-nav-item col-span-3 row-start-2 min-w-0 md:order-none md:col-auto md:row-auto md:flex-1"
+            style={{ animationDelay: "0.1s" }}
+          >
+            <SearchBar
+              value={query}
+              onChange={handleChange}
+              onSubmitSearch={goSearch}
+            />
+            <BrandTagline className="mt-1.5 text-xs md:hidden" />
+          </div>
 
-          <nav className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+          <nav
+            className="header-nav-item col-start-3 row-start-1 ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5 md:ml-0"
+            style={{ animationDelay: "0.16s" }}
+          >
             <HeaderLink
               href="/app?tab=meus"
               label="Meus anúncios"
-              icon={<GridIcon className="h-5 w-5" />}
+              icon={<GridIcon className="h-5 w-5 sm:h-6 sm:w-6" />}
+              className="hidden md:inline-flex"
+            />
+
+            <HeaderIconButton
+              label="Reclamar"
+              pressed={supportOpen}
+              controls="support-complaint-modal"
+              onClick={() => {
+                setPanel(null);
+                setSupportOpen(true);
+              }}
+              icon={<SupportIcon className="h-5 w-5 sm:h-6 sm:w-6" />}
             />
 
             <div className="relative">
@@ -183,7 +264,7 @@ function AppHeaderInner() {
                 pressed={panel === "notifications"}
                 controls={notifId}
                 onClick={toggleNotifications}
-                icon={<BellIcon className="h-5 w-5" />}
+                icon={<BellIcon className="h-5 w-5 sm:h-6 sm:w-6" />}
                 badgeCount={notifications.unreadCount}
               />
               {panel === "notifications" && (
@@ -204,21 +285,24 @@ function AppHeaderInner() {
                 setPanel(null);
                 setProfileOpen(true);
               }}
-              className="ml-1 inline-flex max-w-[10rem] items-center gap-2 rounded-full border border-fog bg-white py-1 pl-1 pr-2.5 text-sm font-semibold text-navy transition-soft hover:border-brand hover:bg-mist sm:max-w-[12rem] sm:pr-3"
+              className="ml-0.5 inline-flex items-center gap-2 rounded-full border border-fog bg-white p-1 text-sm font-semibold text-navy transition-soft hover:border-brand hover:bg-mist sm:max-w-[14rem] sm:py-1.5 sm:pl-1.5 sm:pr-3.5 sm:text-base"
               aria-haspopup="dialog"
               aria-expanded={profileOpen}
+              aria-label={`Perfil de ${user.name}`}
             >
-              <ProfileAvatar user={user} size={28} />
-              <span className="min-w-0 truncate">{user.name.split(" ")[0]}</span>
-              <ChevronIcon className="h-3.5 w-3.5 shrink-0 text-muted" />
+              <ProfileAvatar user={user} size={32} />
+              <span className="hidden min-w-0 truncate sm:inline">
+                {user.name.split(" ")[0]}
+              </span>
+              <ChevronIcon className="hidden h-4 w-4 shrink-0 text-muted sm:block" />
             </button>
 
             <Link
               href="/app?tab=anunciar"
-              className="ml-0.5 inline-flex items-center gap-1.5 rounded-full bg-navy px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-soft hover:bg-brand sm:px-4 sm:py-2"
+              className="ml-0.5 hidden items-center gap-1.5 rounded-full bg-navy px-4 py-2 text-sm font-semibold text-white shadow-sm transition-soft hover:bg-brand md:inline-flex sm:px-5 sm:py-2.5 sm:text-base"
             >
-              <PlusCircleIcon className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">Anunciar</span>
+              <PlusCircleIcon className="h-5 w-5 shrink-0" />
+              Anunciar
             </Link>
           </nav>
         </div>
@@ -232,6 +316,11 @@ function AppHeaderInner() {
           signOut();
           router.push("/");
         }}
+      />
+
+      <SupportComplaintModal
+        open={supportOpen}
+        onClose={() => setSupportOpen(false)}
       />
     </>
   );
@@ -323,7 +412,7 @@ function NotificationsPanel({
       id={id}
       role="dialog"
       aria-label="Notificações"
-      className="absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border border-fog bg-white shadow-lg"
+      className="absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-fog bg-white shadow-lg animate-fade-in"
     >
       <div className="flex items-center justify-between border-b border-fog px-4 py-2.5">
         <p className="text-sm font-semibold text-navy">Notificações</p>
@@ -415,6 +504,25 @@ function GridIcon({ className }: { className?: string }) {
       <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
       <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
       <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
+function SupportIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3a7 7 0 0 0-7 7v2.2A2.8 2.8 0 0 0 7.8 15H9v-4H6.2A5.8 5.8 0 0 1 12 5a5.8 5.8 0 0 1 5.8 6H15v4h1.2A2.8 2.8 0 0 0 19 12.2V10a7 7 0 0 0-7-7Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 15v1.5A2.5 2.5 0 0 0 11.5 19h1"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

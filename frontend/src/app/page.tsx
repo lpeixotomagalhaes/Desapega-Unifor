@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { BrandLogo } from "@/components/BrandLogo";
+import { useEffect, useState, type ReactNode } from "react";
+import { HeroCarousel } from "@/components/HeroCarousel";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
+import { Reveal } from "@/components/Reveal";
+import { SiteFooter } from "@/components/SiteFooter";
 import {
   api,
   CATEGORIES,
@@ -11,23 +13,43 @@ import {
   type Item,
 } from "@/lib/api";
 
-const STEPS = [
+const STEPS: {
+  title: string;
+  description: string;
+  Icon: (props: { className?: string }) => ReactNode;
+}[] = [
   {
     title: "Anuncie o que não usa mais",
     description:
       "Aquele livro de Cálculo, a calculadora ou o jaleco parado no armário podem ajudar outro estudante.",
+    Icon: AnnounceIcon,
   },
   {
     title: "Doe ou venda por um precinho",
     description:
       "Você escolhe: desapega de graça ou cobra um valor simbólico. Tudo entre estudantes do campus.",
+    Icon: TagIcon,
   },
   {
     title: "Combine a entrega no campus",
     description:
       "Sem frete e sem burocracia: é só combinar de se encontrar no bloco, na cantina ou na biblioteca.",
+    Icon: PinIcon,
   },
 ];
+
+const STEP_VARIANTS = ["slide-left", "zoom-in", "slide-right"] as const;
+
+const CARD_VARIANTS = [
+  "slide-up",
+  "slide-left",
+  "zoom-in",
+  "slide-right",
+  "fade-up",
+  "scale",
+  "slide-up",
+  "slide-left",
+] as const;
 
 export default function LandingPage() {
   const [items, setItems] = useState<Item[] | null>(null);
@@ -43,148 +65,148 @@ export default function LandingPage() {
   }, [category]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col bg-mist">
       <main className="flex-1">
-        {/* Hero — brand-first, full-bleed navy */}
-        <section className="hero-glow relative overflow-hidden text-white">
-          <div className="pointer-events-none absolute -right-16 top-8 opacity-20 sm:right-8 sm:opacity-30">
-            <BrandLogo mark="white" height={220} className="animate-fade-in delay-3" />
-          </div>
-          <div className="relative mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-16 sm:py-24 lg:py-28">
-            <BrandLogo
-              variant="horizontal"
-              height={42}
-              priority
-              className="animate-fade-up"
-            />
-            <p className="animate-fade-up delay-1 max-w-xl font-[family-name:var(--font-display)] text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
-              Desapega UNIFOR
-            </p>
-            <p className="animate-fade-up delay-2 max-w-xl text-lg text-white/80 sm:text-xl">
-              Economia circular no campus: doe ou venda livros, calculadoras,
-              jalecos e materiais — e ajude quem está chegando na universidade.
-            </p>
-            <div className="animate-fade-up delay-3 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/app?tab=anunciar"
-                className="rounded-xl bg-white px-8 py-3.5 text-center font-semibold text-navy shadow-lg transition-soft hover:-translate-y-0.5 hover:bg-mist hover:shadow-xl"
-              >
-                Quero anunciar
-              </Link>
-              <Link
-                href="#vitrine"
-                className="rounded-xl border border-white/35 bg-white/5 px-8 py-3.5 text-center font-semibold text-white backdrop-blur transition-soft hover:-translate-y-0.5 hover:border-white/70 hover:bg-white/10"
-              >
-                Buscar itens
-              </Link>
-            </div>
-          </div>
-        </section>
+        <HeroCarousel />
 
-        {/* Como funciona */}
-        <section className="border-b border-fog bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
-            <h2 className="mb-10 text-center font-[family-name:var(--font-display)] text-2xl font-bold text-navy sm:text-3xl">
+        <section className="section-blend section-from-hero relative z-[1] -mt-10 border-b border-fog/70 bg-gradient-to-b from-white via-white to-mist pt-4 sm:-mt-14 sm:pt-6">
+          <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16">
+            <Reveal variant="slide-down" className="mb-3 text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-brand">
+                Passo a passo
+              </p>
+            </Reveal>
+            <Reveal
+              as="h2"
+              variant="slide-up"
+              delay={50}
+              className="mb-3 text-center font-[family-name:var(--font-display)] text-2xl font-bold text-navy sm:text-3xl"
+            >
               Como funciona
-            </h2>
-            <div className="grid gap-6 sm:grid-cols-3">
+            </Reveal>
+            <Reveal
+              variant="fade"
+              delay={100}
+              className="mx-auto mb-12 max-w-xl text-center"
+            >
+              <p className="text-sm text-muted sm:text-base">
+                Três passos simples pra desapegar no campus — sem frete e sem
+                complicação.
+              </p>
+            </Reveal>
+
+            <div className="relative grid gap-5 sm:grid-cols-3 sm:gap-6">
+              <div
+                className="pointer-events-none absolute left-[16%] right-[16%] top-10 hidden h-px bg-gradient-to-r from-transparent via-brand/35 to-transparent sm:block"
+                aria-hidden
+              />
+
               {STEPS.map((step, index) => (
-                <div
+                <Reveal
                   key={step.title}
-                  className="hover-lift animate-fade-up rounded-2xl border border-fog bg-mist/50 p-6"
-                  style={{ animationDelay: `${(index + 1) * 0.12}s` }}
+                  delay={index * 90}
+                  variant={STEP_VARIANTS[index] ?? "fade-up"}
+                  className="hover-lift relative rounded-2xl border border-fog bg-white p-6 shadow-sm"
                 >
-                  <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-navy font-[family-name:var(--font-display)] font-bold text-white">
-                    {index + 1}
-                  </span>
-                  <h3 className="mb-2 font-semibold text-navy">{step.title}</h3>
-                  <p className="text-sm text-muted">{step.description}</p>
-                </div>
+                  <div className="mb-4 flex items-center gap-3">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-navy to-brand text-white shadow-md shadow-brand/20">
+                      <step.Icon className="h-6 w-6" />
+                    </span>
+                    <span className="font-[family-name:var(--font-display)] text-sm font-bold text-brand">
+                      0{index + 1}
+                    </span>
+                  </div>
+                  <h3 className="mb-2 font-[family-name:var(--font-display)] text-lg font-semibold text-navy">
+                    {step.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-muted">
+                    {step.description}
+                  </p>
+                </Reveal>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Vitrine */}
-        <section id="vitrine" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-12">
-          <div className="mb-6 animate-fade-up">
-            <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-navy sm:text-3xl">
-              Últimos anúncios
-            </h2>
-            <p className="text-muted">
-              Itens recém-desapegados pela galera do campus
-            </p>
-          </div>
+        <section
+          id="vitrine"
+          className="section-blend section-to-mist relative scroll-mt-20 bg-gradient-to-b from-mist via-[#e8eef8] to-[#dfe8f6] px-4 py-12 sm:px-6 sm:py-14"
+        >
+          <div className="mx-auto max-w-7xl">
+            <Reveal variant="slide-left" className="mb-6">
+              <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-navy sm:text-3xl">
+                Últimos anúncios
+              </h2>
+              <p className="text-muted">
+                Itens recém-desapegados pela galera do campus
+              </p>
+            </Reveal>
 
-          <div className="mb-6 flex flex-wrap gap-2">
-            <FilterChip
-              active={category === null}
-              onClick={() => setCategory(null)}
-              label="Todos"
-            />
-            {(Object.keys(CATEGORIES) as Category[]).map((key) => (
+            <Reveal variant="slide-right" delay={40} className="mb-6 flex flex-wrap gap-2">
               <FilterChip
-                key={key}
-                active={category === key}
-                onClick={() => setCategory(key)}
-                label={CATEGORIES[key]}
+                active={category === null}
+                onClick={() => setCategory(null)}
+                label="Todos"
               />
-            ))}
-          </div>
+              {(Object.keys(CATEGORIES) as Category[]).map((key) => (
+                <FilterChip
+                  key={key}
+                  active={category === key}
+                  onClick={() => setCategory(key)}
+                  label={CATEGORIES[key]}
+                />
+              ))}
+            </Reveal>
 
-          {error ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-800">
-              Não foi possível carregar os anúncios. Verifique se a API está
-              rodando.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {items === null
-                ? Array.from({ length: 4 }).map((_, i) => (
-                    <ItemCardSkeleton key={i} />
-                  ))
-                : items.map((item, i) => (
-                    <div
-                      key={item.id}
-                      className="animate-fade-up"
-                      style={{ animationDelay: `${Math.min(i, 5) * 0.07}s` }}
-                    >
-                      <ItemCard item={item} />
-                    </div>
-                  ))}
-            </div>
-          )}
+            {error ? (
+              <Reveal variant="zoom-in">
+                <p className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-800">
+                  Não foi possível carregar os anúncios. Verifique se a API
+                  está rodando.
+                </p>
+              </Reveal>
+            ) : (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {items === null
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <ItemCardSkeleton key={i} />
+                    ))
+                  : items.map((item, i) => (
+                      <Reveal
+                        key={item.id}
+                        delay={Math.min(i, 7) * 60}
+                        variant={CARD_VARIANTS[i % CARD_VARIANTS.length]}
+                      >
+                        <ItemCard item={item} />
+                      </Reveal>
+                    ))}
+              </div>
+            )}
 
-          {items?.length === 0 && (
-            <p className="rounded-xl border border-fog bg-white p-8 text-center text-muted">
-              Nenhum item nessa categoria ainda. Que tal ser a primeira pessoa a
-              anunciar?
-            </p>
-          )}
+            {items?.length === 0 && (
+              <Reveal variant="fade-up">
+                <p className="rounded-xl border border-fog bg-white p-8 text-center text-muted">
+                  Nenhum item nessa categoria ainda. Que tal ser a primeira
+                  pessoa a anunciar?
+                </p>
+              </Reveal>
+            )}
 
-          <div className="mt-8 text-center">
-            <Link
-              href="/app"
-              className="inline-block rounded-xl border-2 border-navy px-6 py-3 font-semibold text-navy transition-soft hover:-translate-y-0.5 hover:bg-navy hover:text-white"
-            >
-              Ver todos no app
-            </Link>
+            <Reveal variant="scale" delay={80} className="mt-8 text-center">
+              <Link
+                href="/app"
+                className="inline-block rounded-xl border-2 border-navy px-6 py-3 font-semibold text-navy transition-soft hover:-translate-y-0.5 hover:bg-navy hover:text-white"
+              >
+                Ver todos no app
+              </Link>
+            </Reveal>
           </div>
         </section>
+
+        <div className="footer-blend" aria-hidden />
       </main>
 
-      <footer className="bg-navy-deep text-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-10 text-center">
-          <BrandLogo variant="horizontal" height={36} />
-          <p className="font-[family-name:var(--font-display)] text-lg font-semibold">
-            Desapega UNIFOR
-          </p>
-          <p className="max-w-md text-sm text-white/65">
-            Projeto de economia circular do campus — Desafio Técnico Laboratório
-            Vortex 2026
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
@@ -209,5 +231,58 @@ function FilterChip({
     >
       {label}
     </button>
+  );
+}
+
+function AnnounceIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 10.5v3c0 .8.5 1.5 1.2 1.8l3.3 1.1V8.6L5.2 9.7C4.5 10 4 10.7 4 10.5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8.5 8.6 18 5.5v13l-9.5-3.1"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8.5 15.4v2.3a1.8 1.8 0 0 0 2.7 1.5l.6-.4"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function TagIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M3.5 12.2 11.3 4.4a2 2 0 0 1 1.4-.6H19a1.5 1.5 0 0 1 1.5 1.5v6.3a2 2 0 0 1-.6 1.4l-7.8 7.8a2 2 0 0 1-2.8 0L3.5 15a2 2 0 0 1 0-2.8z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <circle cx="16.2" cy="7.8" r="1.35" fill="currentColor" />
+    </svg>
+  );
+}
+
+function PinIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 21s6.5-5.2 6.5-11A6.5 6.5 0 0 0 5.5 10c0 5.8 6.5 11 6.5 11z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="10" r="2.25" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
   );
 }

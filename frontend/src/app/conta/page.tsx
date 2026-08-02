@@ -17,6 +17,7 @@ function ContaInner() {
   const { refreshUser, signOut } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [bio, setBio] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +26,7 @@ function ContaInner() {
     if (!user) return;
     setName(user.name);
     setPhone(user.phone ?? "");
+    setBio(user.bio ?? "");
   }, [user]);
 
   if (!ready || !user || !token) return null;
@@ -47,6 +49,7 @@ function ContaInner() {
     try {
       await api.updateMe(token, {
         name: name.trim(),
+        bio: bio.trim(),
         ...(phone ? { phone } : {}),
       });
       await refreshUser();
@@ -76,6 +79,12 @@ function ContaInner() {
             Minha conta
           </h1>
           <p className="text-sm text-muted">{user.email}</p>
+          <Link
+            href={`/perfil/${user.id}`}
+            className="mt-1 inline-block text-sm font-medium text-brand hover:underline"
+          >
+            Ver perfil público
+          </Link>
         </div>
       </div>
 
@@ -114,6 +123,21 @@ function ContaInner() {
             placeholder="(85) 91234-5678"
             className={inputClass}
           />
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+          Bio pública
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            maxLength={280}
+            rows={3}
+            placeholder="Conte um pouco sobre você (curso, campus…)"
+            className={inputClass}
+          />
+          <span className="text-xs font-normal text-muted">
+            {bio.length}/280 — aparece no seu perfil público
+          </span>
         </label>
 
         {error && (

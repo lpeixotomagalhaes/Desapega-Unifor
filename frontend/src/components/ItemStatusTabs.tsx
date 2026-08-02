@@ -20,7 +20,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "publicados", label: "Publicados" },
   { id: "negociando", label: "Em negociação" },
   { id: "concluidos", label: "Vendidos e doados" },
-  { id: "interessados", label: "Interessados" },
+  { id: "interessados", label: "Pedidos" },
 ];
 
 const EMPTY_MESSAGES: Record<Exclude<TabId, "interessados">, string> = {
@@ -37,6 +37,7 @@ interface ItemStatusTabsProps {
   initialTab?: TabId;
   onDeleteItem: (id: string) => void;
   onItemUpdated: (item: Item) => void;
+  onInterestUpdated?: (interest: ItemInterest) => void;
 }
 
 function parseInitialTab(value: string | undefined): TabId {
@@ -59,6 +60,7 @@ export function ItemStatusTabs({
   initialTab,
   onDeleteItem,
   onItemUpdated,
+  onInterestUpdated,
 }: ItemStatusTabsProps) {
   const [tab, setTab] = useState<TabId>(() => parseInitialTab(initialTab));
   const [actingKey, setActingKey] = useState<string | null>(null);
@@ -104,6 +106,32 @@ export function ItemStatusTabs({
         err instanceof ApiError
           ? err.message
           : "Não foi possível atualizar o anúncio.",
+      );
+    } finally {
+      setActingKey(null);
+    }
+  };
+
+  const changeOrderStatus = async (
+    orderId: string,
+    status: "NEGOCIANDO" | "ENTREGUE",
+  ) => {
+    if (!token) return;
+    const key = `order:${orderId}:${status}`;
+    setActingKey(key);
+    setActionError(null);
+    try {
+      const updated = await api.updateOrderStatus(token, orderId, status);
+      onInterestUpdated?.(updated);
+      // Atualiza o card do anúncio após mudança de status do pedido.
+      const refreshed = await api.getMyItems(token);
+      const match = refreshed.find((i) => i.id === updated.itemId);
+      if (match) onItemUpdated(match);
+    } catch (err) {
+      setActionError(
+        err instanceof ApiError
+          ? err.message
+          : "Não foi possível atualizar o pedido.",
       );
     } finally {
       setActingKey(null);
@@ -160,8 +188,11 @@ export function ItemStatusTabs({
         <InterestsPanel
           interests={interests}
           actingKey={actingKey}
-          onMarkNegotiating={(itemId, buyerId) =>
-            changeStatus(itemId, "NEGOCIANDO", buyerId)
+          onConfirmNegotiation={(orderId) =>
+            void changeOrderStatus(orderId, "NEGOCIANDO")
+          }
+          onConfirmDelivery={(orderId) =>
+            void changeOrderStatus(orderId, "ENTREGUE")
           }
         />
       )}
@@ -276,20 +307,44 @@ function StatusActions({
   );
 }
 
+const ORDER_STATUS_LABEL: Record<ItemInterest["status"], string> = {
+  PENDENTE: "Pendente",
+  NEGOCIANDO: "Em negociação",
+  ENTREGUE: "Entregue",
+};
+
+function formatOrderValue(order: ItemInterest): string {
+  if (order.item.isDonation) return "Doação";
+  if (order.acceptListedPrice) {
+    if (order.item.price == null) return "Valor anunciado";
+    return Number(order.item.price).toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    });
+  }
+  if (order.offeredPrice == null) return "Oferta a combinar";
+  return Number(order.offeredPrice).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
 function InterestsPanel({
   interests,
   actingKey,
-  onMarkNegotiating,
+  onConfirmNegotiation,
+  onConfirmDelivery,
 }: {
   interests: ItemInterest[] | null;
   actingKey: string | null;
-  onMarkNegotiating: (itemId: string, buyerId: string) => void;
+  onConfirmNegotiation: (orderId: string) => void;
+  onConfirmDelivery: (orderId: string) => void;
 }) {
   if (interests === null) {
     return (
       <div className="flex flex-col gap-3">
         {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="h-20 animate-pulse rounded-xl bg-fog" />
+          <div key={i} className="h-28 animate-pulse rounded-xl bg-fog" />
         ))}
       </div>
     );
@@ -298,7 +353,7 @@ function InterestsPanel({
   if (interests.length === 0) {
     return (
       <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
-        Ninguém demonstrou interesse nos seus anúncios ainda.
+        Nenhum pedido nos seus anúncios ainda.
       </p>
     );
   }
@@ -306,46 +361,97 @@ function InterestsPanel({
   return (
     <ul className="flex flex-col gap-3">
       {interests.map((interest) => {
-        const key = `${interest.item.id}:NEGOCIANDO:${interest.buyer.id}`;
-        const isNegotiatingHere = interest.item.status === "NEGOCIANDO";
-        const isConcluded = interest.item.status === "CONCLUIDO";
+        const negotiatingKey = `order:${interest.id}:NEGOCIANDO`;
+        const deliveryKey = `order:${interest.id}:ENTREGUE`;
+        const acting =
+          actingKey === negotiatingKey || actingKey === deliveryKey;
         return (
           <li
             key={interest.id}
-            className="flex items-center gap-3 rounded-xl border border-fog bg-white p-3"
+            className="rounded-xl border border-fog bg-white p-3 sm:p-4"
           >
-            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-mist">
-              <Image
-                src={resolveImageUrl(interest.item.imageUrl)}
-                alt={interest.item.title}
-                fill
-                sizes="56px"
-                className="object-cover"
-              />
+            <div className="flex gap-3">
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-mist">
+                <Image
+                  src={resolveImageUrl(interest.item.imageUrl)}
+                  alt={interest.item.title}
+                  fill
+                  sizes="56px"
+                  className="object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <Link
+                      href={`/itens/${interest.item.id}`}
+                      className="line-clamp-1 text-sm font-semibold text-navy hover:underline"
+                    >
+                      {interest.item.title}
+                    </Link>
+                    <p className="text-xs text-muted">
+                      Pedido de{" "}
+                      <span className="font-medium">{interest.buyer.name}</span>
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-mist px-2.5 py-1 text-[11px] font-semibold text-navy/80">
+                    {ORDER_STATUS_LABEL[interest.status] ?? interest.status}
+                  </span>
+                </div>
+                <dl className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
+                  <div>
+                    <dt className="inline font-medium text-navy/70">Curso: </dt>
+                    <dd className="inline">{interest.course || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-navy/70">
+                      Matrícula:{" "}
+                    </dt>
+                    <dd className="inline">{interest.enrollment || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-navy/70">Valor: </dt>
+                    <dd className="inline">{formatOrderValue(interest)}</dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-navy/70">
+                      Encontro:{" "}
+                    </dt>
+                    <dd className="inline">
+                      {interest.meetupDay || "—"} às {interest.meetupTime || "—"}{" "}
+                      — {interest.campusBlock || "—"}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <Link
-                href={`/itens/${interest.item.id}`}
-                className="line-clamp-1 text-sm font-semibold text-navy hover:underline"
-              >
-                {interest.item.title}
-              </Link>
-              <p className="text-xs text-muted">
-                Interesse de <span className="font-medium">{interest.buyer.name}</span>
-              </p>
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
+              {interest.status === "PENDENTE" && (
+                <button
+                  type="button"
+                  disabled={acting}
+                  onClick={() => onConfirmNegotiation(interest.id)}
+                  className="rounded-lg bg-navy px-3 py-2 text-xs font-semibold text-white transition-soft hover:bg-brand disabled:opacity-50"
+                >
+                  Confirmar negociação
+                </button>
+              )}
+              {interest.status === "NEGOCIANDO" && (
+                <button
+                  type="button"
+                  disabled={acting}
+                  onClick={() => onConfirmDelivery(interest.id)}
+                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition-soft hover:bg-green-700 disabled:opacity-50"
+                >
+                  Confirmar entrega
+                </button>
+              )}
+              {interest.status === "ENTREGUE" && (
+                <span className="text-xs font-medium text-green-700">
+                  Entrega confirmada
+                </span>
+              )}
             </div>
-            <button
-              type="button"
-              disabled={actingKey === key || isConcluded}
-              onClick={() => onMarkNegotiating(interest.item.id, interest.buyer.id)}
-              className="shrink-0 rounded-lg border border-fog px-3 py-2 text-xs font-semibold text-navy/80 transition-soft hover:border-brand hover:text-brand disabled:opacity-50"
-            >
-              {isConcluded
-                ? "Concluído"
-                : isNegotiatingHere
-                  ? "Em negociação"
-                  : `Negociar com ${interest.buyer.name.split(" ")[0]}`}
-            </button>
           </li>
         );
       })}
