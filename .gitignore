@@ -27,3 +27,4 @@ backend/uploads/
 .DS_Store
 Thumbs.db
 coverage/
+.vercel

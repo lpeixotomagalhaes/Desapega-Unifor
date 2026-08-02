@@ -431,8 +431,19 @@ function MyItemsTab({ view }: { view: string | null }) {
 
   const load = useCallback(() => {
     if (!token) return;
-    api.getMyItems(token).then(setItems).catch(() => setError(true));
-    api.getMyInterests(token).then(setInterests).catch(() => setError(true));
+    setError(false);
+    api
+      .getMyItems(token)
+      .then(setItems)
+      .catch(() => {
+        setItems([]);
+        setError(true);
+      });
+    // Pedidos são secundários: falha não deve esconder os anúncios
+    api
+      .getMyInterests(token)
+      .then(setInterests)
+      .catch(() => setInterests([]));
   }, [token]);
 
   useEffect(load, [load]);

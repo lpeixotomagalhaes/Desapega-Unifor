@@ -334,6 +334,17 @@ function AppHeaderInner() {
   );
 }
 
+function HeaderNavLabel({ label }: { label: string }) {
+  return (
+    <span
+      className="header-nav-label max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-[max-width,opacity,margin] duration-300 ease-out group-hover:max-w-[9rem] group-hover:opacity-100 group-hover:ml-1.5 group-focus-visible:max-w-[9rem] group-focus-visible:opacity-100 group-focus-visible:ml-1.5"
+      aria-hidden
+    >
+      {label}
+    </span>
+  );
+}
+
 function HeaderLink({
   href,
   label,
@@ -348,11 +359,14 @@ function HeaderLink({
   return (
     <Link
       href={href}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-navy/75 transition-soft hover:bg-mist hover:text-navy ${className}`}
+      aria-label={label}
+      title={label}
+      className={`group inline-flex items-center rounded-lg px-2 py-1.5 text-navy/75 transition-soft hover:bg-mist hover:text-navy ${className}`}
     >
-      <span className="text-navy/60">{icon}</span>
-      <span className="hidden lg:inline">{label}</span>
-      <span className="sr-only lg:hidden">{label}</span>
+      <span className="shrink-0 text-navy/60 transition-soft group-hover:text-navy">
+        {icon}
+      </span>
+      <HeaderNavLabel label={label} />
     </Link>
   );
 }
@@ -376,16 +390,17 @@ function HeaderIconButton({
     <button
       type="button"
       aria-label={label}
+      title={label}
       aria-expanded={pressed}
       aria-controls={controls}
       onClick={onClick}
-      className={`relative inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium transition-soft ${
+      className={`group relative inline-flex items-center rounded-lg px-2 py-1.5 transition-soft ${
         pressed
           ? "bg-mist text-navy"
           : "text-navy/75 hover:bg-mist hover:text-navy"
       }`}
     >
-      <span className="relative text-navy/60">
+      <span className="relative shrink-0 text-navy/60 transition-soft group-hover:text-navy">
         {icon}
         {Boolean(badgeCount) && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
@@ -393,7 +408,7 @@ function HeaderIconButton({
           </span>
         )}
       </span>
-      <span className="hidden lg:inline">{label}</span>
+      <HeaderNavLabel label={label} />
     </button>
   );
 }
