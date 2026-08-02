@@ -16,8 +16,8 @@ services:
     region: oregon
     rootDir: backend
     buildCommand: npm install --include=dev && npm run build
-    # migrate deploy aplica roles/pedidos/reviews no Supabase a cada deploy
-    startCommand: npx prisma migrate deploy && npm run start:prod
+    # baseline automático se o banco já existia sem histórico Prisma (P3005)
+    startCommand: node scripts/render-start.mjs
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
