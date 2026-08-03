@@ -197,7 +197,7 @@ export function InterestOrderForm({ item }: { item: Item }) {
   if (isOwner) {
     return (
       <div className="rounded-2xl border border-fog bg-white p-5 text-sm text-muted">
-        Este é o seu anúncio. Os pedidos dos interessados aparecem em{" "}
+        Este é o seu anúncio. Os interessados aparecem em{" "}
         <span className="font-medium text-navy">Meus anúncios → Interessados</span>.
       </div>
     );

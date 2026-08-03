@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import {
   api,
@@ -191,6 +192,14 @@ export default function DashboardSupportPage() {
                 <p className="mt-1 text-sm text-navy">
                   {selected.user?.name} · {selected.user?.email}
                 </p>
+                {selected.user?.email && (
+                  <Link
+                    href={`/dashboard/users?email=${encodeURIComponent(selected.user.email)}`}
+                    className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
+                  >
+                    Banir / suspender este usuário
+                  </Link>
+                )}
               </div>
 
               <form onSubmit={handleSave} className="space-y-3 border-t border-fog pt-4">

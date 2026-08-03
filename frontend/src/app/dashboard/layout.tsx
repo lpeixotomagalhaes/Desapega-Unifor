@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { AdminClock } from "@/components/AdminClock";
 import { AdminGate } from "@/components/AdminGate";
+import { AdminProfileDrawer } from "@/components/AdminProfileDrawer";
 import { BrandLogo, BrandTagline, DesapegaWordmark } from "@/components/BrandLogo";
-import { ProfileAvatar, ProfileDrawer } from "@/components/ProfileDrawer";
+import { ProfileAvatar } from "@/components/ProfileDrawer";
 import { isSuperAdmin } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -28,6 +30,11 @@ const NAV: NavItem[] = [
     href: "/dashboard/users",
     label: "Usuários",
     icon: <UsersIcon />,
+  },
+  {
+    href: "/dashboard/items",
+    label: "Anúncios",
+    icon: <ItemsIcon />,
   },
   {
     href: "/dashboard/support",
@@ -114,7 +121,9 @@ function DashboardShell({ children }: { children: ReactNode }) {
             </div>
           </Link>
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div className="ml-auto flex items-center gap-3 sm:gap-4">
+            <AdminClock />
+
             <Link
               href="/"
               className="hidden rounded-full border border-navy/20 px-3.5 py-2 text-sm font-semibold text-navy transition-soft hover:border-brand hover:text-brand sm:inline-flex"
@@ -127,7 +136,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => setProfileOpen(true)}
                 className="flex items-center gap-2 rounded-full border border-fog bg-white py-1 pl-1 pr-2.5 transition-soft hover:border-brand/40 hover:bg-mist/50 sm:pr-3"
-                aria-label={`Perfil de ${user.name}`}
+                aria-label={`Perfil admin de ${user.name}`}
                 aria-haspopup="dialog"
                 aria-expanded={profileOpen}
               >
@@ -217,7 +226,7 @@ function DashboardShell({ children }: { children: ReactNode }) {
       </div>
 
       {user && (
-        <ProfileDrawer
+        <AdminProfileDrawer
           open={profileOpen}
           user={user}
           onClose={() => setProfileOpen(false)}
@@ -250,6 +259,28 @@ function UsersIcon() {
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ItemsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16M4 12h16M4 17h10"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.75"
       />
     </svg>
   );

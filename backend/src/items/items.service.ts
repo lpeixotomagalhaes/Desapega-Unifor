@@ -317,7 +317,9 @@ export class ItemsService {
             isDonation: true,
           },
         },
-        buyer: { select: { id: true, name: true } },
+        buyer: {
+          select: { id: true, name: true, phone: true, avatarUrl: true },
+        },
       },
     });
   }

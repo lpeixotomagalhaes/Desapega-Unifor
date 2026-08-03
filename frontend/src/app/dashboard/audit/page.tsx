@@ -9,6 +9,7 @@ const ACTION_LABEL: Record<string, string> = {
   USER_SUSPEND: "Suspensão",
   USER_RESTORE: "Reativação",
   ITEM_TAKE_DOWN: "Remoção de anúncio",
+  ITEM_DELETE: "Exclusão de anúncio",
   SUPPORT_UPDATE: "Suporte",
   ADMIN_PROMOTE: "Promoção a admin",
   ADMIN_REVOKE: "Revogação de admin",

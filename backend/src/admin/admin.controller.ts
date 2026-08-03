@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -61,6 +62,21 @@ export class AdminController {
     return this.adminService.moderateUser(id, user.id, dto);
   }
 
+  @Get('items')
+  listItems(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO',
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.listItems({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      status,
+      search,
+    });
+  }
+
   @Patch('items/:id/take-down')
   takeDownItem(
     @Param('id') id: string,
@@ -68,6 +84,15 @@ export class AdminController {
     @Body() dto: AdminTakeDownItemDto,
   ) {
     return this.adminService.takeDownItem(id, user.id, dto);
+  }
+
+  @Delete('items/:id')
+  deleteItem(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AdminTakeDownItemDto,
+  ) {
+    return this.adminService.deleteItem(id, user.id, dto);
   }
 
   @Get('admins')

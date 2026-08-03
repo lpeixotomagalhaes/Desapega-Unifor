@@ -37,12 +37,6 @@ const MENU_ITEMS = [
     description: "Pedidos e avaliações pendentes",
     icon: "bag",
   },
-  {
-    href: "/conta",
-    label: "Minha conta",
-    description: "Nome, matrícula, curso, WhatsApp e bio",
-    icon: "user",
-  },
 ] as const;
 
 export function ProfileDrawer({
@@ -121,10 +115,10 @@ export function ProfileDrawer({
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-navy">
-                    Ver meu perfil público
+                    Meu perfil
                   </span>
                   <span className="block text-xs text-muted">
-                    Avaliações e anúncios ativos
+                    Dados, avaliações e anúncios
                   </span>
                 </span>
               </Link>
@@ -207,9 +201,22 @@ function MenuIcon({
   name,
   className,
 }: {
-  name: (typeof MENU_ITEMS)[number]["icon"];
+  name: (typeof MENU_ITEMS)[number]["icon"] | "user";
   className?: string;
 }) {
+  if (name === "user") {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+        <circle cx="12" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.75" />
+        <path
+          d="M5.5 19.5c1.5-3 4-4.5 6.5-4.5s5 1.5 6.5 4.5"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
   if (name === "grid") {
     return (
       <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>

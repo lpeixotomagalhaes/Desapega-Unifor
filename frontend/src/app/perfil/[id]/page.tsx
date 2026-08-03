@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { ItemCard } from "@/components/ItemCard";
+import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { StarRatingDisplay } from "@/components/RatingModal";
 import { Reveal } from "@/components/Reveal";
 import {
@@ -110,12 +111,27 @@ function DealHistoryCard({ deal }: { deal: ProfileCompletedDeal }) {
   );
 }
 
-export default function PublicProfilePage() {
+function PublicProfileInner() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const { user: me } = useAuth();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState<"historico" | "anuncios">("historico");
+  const [editing, setEditing] = useState(false);
+
+  const reload = useCallback(() => {
+    return api
+      .getUserProfile(params.id)
+      .then((data) => {
+        setProfile(data);
+        setNotFound(false);
+      })
+      .catch(() => {
+        setNotFound(true);
+      });
+  }, [params.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +149,12 @@ export default function PublicProfilePage() {
       cancelled = true;
     };
   }, [params.id]);
+
+  useEffect(() => {
+    if (searchParams.get("edit") === "1" && me?.id === params.id) {
+      setEditing(true);
+    }
+  }, [searchParams, me?.id, params.id]);
 
   if (notFound) {
     return (
@@ -199,9 +221,22 @@ export default function PublicProfilePage() {
               />
             </div>
 
-            <h1 className="mt-3 font-display text-xl font-bold text-navy">
-              {user.name}
-            </h1>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <h1 className="font-display text-xl font-bold text-navy">
+                {user.name}
+              </h1>
+              {isOwn && me && (
+                <button
+                  type="button"
+                  onClick={() => setEditing((v) => !v)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-soft hover:bg-mist hover:text-navy"
+                  aria-label={editing ? "Fechar edição" : "Editar informações"}
+                  title="Editar informações"
+                >
+                  <PencilIcon />
+                </button>
+              )}
+            </div>
             {isOwn && (
               <span className="mt-1 rounded-full bg-mist px-2.5 py-0.5 text-xs font-semibold text-navy/70">
                 Seu perfil
@@ -241,126 +276,150 @@ export default function PublicProfilePage() {
             </p>
           </div>
 
-          <dl className="mt-5 space-y-3 border-t border-fog pt-5 text-left">
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Nome
-              </dt>
-              <dd className="mt-0.5 text-sm font-medium text-navy">{user.name}</dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Matrícula
-              </dt>
-              <dd className="mt-0.5 text-sm font-medium text-navy">
-                {user.enrollment || (
-                  <span className="text-muted">
-                    {isOwn ? (
-                      <Link href="/conta" className="text-brand hover:underline">
-                        Informar na conta
-                      </Link>
-                    ) : (
-                      "Não informada"
-                    )}
-                  </span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Curso
-              </dt>
-              <dd className="mt-0.5 text-sm font-medium text-navy">
-                {user.course ? (
-                  <>
-                    {user.course}
-                    {courseAreaLabel ? (
-                      <span className="mt-0.5 block text-xs font-normal text-muted">
-                        {courseAreaLabel}
+          {editing && isOwn && me ? (
+            <ProfileEditForm
+              user={me}
+              onCancel={() => {
+                setEditing(false);
+                router.replace(`/perfil/${user.id}`, { scroll: false });
+              }}
+              onSaved={async () => {
+                setEditing(false);
+                router.replace(`/perfil/${user.id}`, { scroll: false });
+                await reload();
+              }}
+            />
+          ) : (
+            <>
+              <dl className="mt-5 space-y-3 border-t border-fog pt-5 text-left">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Nome
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium text-navy">
+                    {user.name}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Matrícula
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium text-navy">
+                    {user.enrollment || (
+                      <span className="text-muted">
+                        {isOwn ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditing(true)}
+                            className="text-brand hover:underline"
+                          >
+                            Informar
+                          </button>
+                        ) : (
+                          "Não informada"
+                        )}
                       </span>
-                    ) : null}
-                  </>
-                ) : (
-                  <span className="text-muted">
-                    {isOwn ? (
-                      <Link href="/conta" className="text-brand hover:underline">
-                        Selecionar na conta
-                      </Link>
-                    ) : (
-                      "Não informado"
                     )}
-                  </span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Telefone / WhatsApp
-              </dt>
-              <dd className="mt-0.5 text-sm font-medium text-navy">
-                {user.phone ? (
-                  <a
-                    href={`https://wa.me/${user.phone.replace(/\D/g, "")}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-brand hover:underline"
-                  >
-                    {formatBrazilianPhoneDisplay(user.phone)}
-                  </a>
-                ) : (
-                  <span className="text-muted">Não informado</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                E-mail
-              </dt>
-              <dd className="mt-0.5 break-all text-sm font-medium text-navy">
-                {user.email}
-              </dd>
-            </div>
-            {user.bio ? (
-              <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  Sobre
-                </dt>
-                <dd className="mt-0.5 text-sm leading-relaxed text-navy/80">
-                  {user.bio}
-                </dd>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Curso
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium text-navy">
+                    {user.course ? (
+                      <>
+                        {user.course}
+                        {courseAreaLabel ? (
+                          <span className="mt-0.5 block text-xs font-normal text-muted">
+                            {courseAreaLabel}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-muted">
+                        {isOwn ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditing(true)}
+                            className="text-brand hover:underline"
+                          >
+                            Selecionar
+                          </button>
+                        ) : (
+                          "Não informado"
+                        )}
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Telefone / WhatsApp
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium text-navy">
+                    {user.phone ? (
+                      <a
+                        href={`https://wa.me/${user.phone.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-brand hover:underline"
+                      >
+                        {formatBrazilianPhoneDisplay(user.phone)}
+                      </a>
+                    ) : (
+                      <span className="text-muted">Não informado</span>
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    E-mail
+                  </dt>
+                  <dd className="mt-0.5 break-all text-sm font-medium text-navy">
+                    {user.email}
+                  </dd>
+                </div>
+                {user.bio ? (
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                      Sobre
+                    </dt>
+                    <dd className="mt-0.5 text-sm leading-relaxed text-navy/80">
+                      {user.bio}
+                    </dd>
+                  </div>
+                ) : isOwn ? (
+                  <p className="text-sm text-muted">
+                    Sem bio.{" "}
+                    <button
+                      type="button"
+                      onClick={() => setEditing(true)}
+                      className="font-medium text-brand hover:underline"
+                    >
+                      Adicionar
+                    </button>
+                  </p>
+                ) : null}
+              </dl>
+
+              <div className="mt-5 grid grid-cols-3 gap-2 border-t border-fog pt-4 text-center">
+                <div>
+                  <p className="text-lg font-bold text-navy">
+                    {activeItems.length}
+                  </p>
+                  <p className="text-[11px] text-muted">Ativos</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-navy">{salesCount}</p>
+                  <p className="text-[11px] text-muted">Vendas</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-navy">{donationCount}</p>
+                  <p className="text-[11px] text-muted">Doações</p>
+                </div>
               </div>
-            ) : isOwn ? (
-              <p className="text-sm text-muted">
-                Sem bio.{" "}
-                <Link href="/conta" className="font-medium text-brand hover:underline">
-                  Editar na conta
-                </Link>
-              </p>
-            ) : null}
-          </dl>
-
-          <div className="mt-5 grid grid-cols-3 gap-2 border-t border-fog pt-4 text-center">
-            <div>
-              <p className="text-lg font-bold text-navy">{activeItems.length}</p>
-              <p className="text-[11px] text-muted">Ativos</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-navy">{salesCount}</p>
-              <p className="text-[11px] text-muted">Vendas</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-navy">{donationCount}</p>
-              <p className="text-[11px] text-muted">Doações</p>
-            </div>
-          </div>
-
-          {isOwn && (
-            <Link
-              href="/conta"
-              className="mt-5 flex w-full items-center justify-center rounded-full bg-navy px-4 py-2.5 text-sm font-semibold text-white transition-soft hover:bg-brand"
-            >
-              Editar perfil
-            </Link>
+            </>
           )}
         </aside>
 
@@ -461,5 +520,33 @@ export default function PublicProfilePage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export default function PublicProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto w-full max-w-6xl flex-1 animate-pulse px-4 py-8">
+          <div className="h-80 rounded-2xl bg-fog" />
+        </div>
+      }
+    >
+      <PublicProfileInner />
+    </Suspense>
   );
 }

@@ -1,29 +1,32 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { InterestOrderForm } from "@/components/InterestOrderForm";
 import { ItemComments } from "@/components/ItemComments";
+import { ItemImageCarousel } from "@/components/ItemImageCarousel";
 import {
   api,
+  ApiError,
   CATEGORIES,
   formatCategories,
   formatPrice,
-  itemGalleryUrls,
+  isAdmin,
   itemStatusLabel,
-  resolveImageUrl,
   type Item,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 export default function ItemDetailPage() {
   const params = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, token } = useAuth();
   const [item, setItem] = useState<Item | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [activeImage, setActiveImage] = useState(0);
+  const [modReason, setModReason] = useState("");
+  const [modBusy, setModBusy] = useState(false);
+  const [modError, setModError] = useState<string | null>(null);
 
   const id = params.id;
 
@@ -31,7 +34,6 @@ export default function ItemDetailPage() {
     let cancelled = false;
     setItem(null);
     setNotFound(false);
-    setActiveImage(0);
     api
       .getItem(id)
       .then((data) => {
@@ -80,8 +82,39 @@ export default function ItemDetailPage() {
 
   const isConcluded = item.status === "CONCLUIDO";
   const statusLabel = itemStatusLabel(item);
-  const gallery = itemGalleryUrls(item);
-  const currentSrc = gallery[Math.min(activeImage, gallery.length - 1)] ?? item.imageUrl;
+  const canModerate = Boolean(token && isAdmin(user));
+
+  const moderateItem = async (mode: "takeDown" | "delete") => {
+    if (!token) return;
+    const ok = window.confirm(
+      mode === "delete"
+        ? "Excluir este anúncio permanentemente?"
+        : "Remover este anúncio do feed?",
+    );
+    if (!ok) return;
+    setModBusy(true);
+    setModError(null);
+    try {
+      if (mode === "delete") {
+        await api.adminDeleteItem(token, item.id, {
+          reason: modReason.trim() || undefined,
+        });
+        router.push("/dashboard/items");
+        return;
+      }
+      const updated = await api.takeDownItem(token, item.id, {
+        reason: modReason.trim() || undefined,
+      });
+      setItem(updated);
+      setModReason("");
+    } catch (err) {
+      setModError(
+        err instanceof ApiError ? err.message : "Falha na moderação.",
+      );
+    } finally {
+      setModBusy(false);
+    }
+  };
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:py-8">
@@ -94,53 +127,31 @@ export default function ItemDetailPage() {
 
       <div className="grid gap-8 md:grid-cols-2">
         <div>
-          <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-mist sm:h-96">
-            <Image
-              src={resolveImageUrl(currentSrc)}
-              alt={item.title}
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
-              className={`object-cover ${isConcluded ? "grayscale-[35%]" : ""}`}
-              priority
-            />
-            <span className="absolute left-4 top-4 max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
-              {formatCategories(item.categories)}
-            </span>
-            {statusLabel && (
-              <span
-                className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
-                  isConcluded ? "bg-navy/80" : "bg-amber-500"
-                }`}
-              >
-                {statusLabel}
+          <ItemImageCarousel
+            item={item}
+            heightClass="h-72 sm:h-96"
+            roundedClass="rounded-2xl"
+            sizes="(max-width: 768px) 100vw, 50vw"
+            priority
+            enableNav
+            imageClassName={isConcluded ? "grayscale-[35%]" : ""}
+            overlayTopLeft={
+              <span className="absolute left-4 top-4 z-[5] max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
+                {formatCategories(item.categories)}
               </span>
-            )}
-          </div>
-          {gallery.length > 1 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              {gallery.map((url, i) => (
-                <button
-                  key={`${url}-${i}`}
-                  type="button"
-                  onClick={() => setActiveImage(i)}
-                  className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-soft ${
-                    i === activeImage
-                      ? "border-brand"
-                      : "border-transparent opacity-80 hover:opacity-100"
+            }
+            overlayTopRight={
+              statusLabel ? (
+                <span
+                  className={`absolute right-4 top-4 z-[5] rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
+                    isConcluded ? "bg-navy/80" : "bg-amber-500"
                   }`}
-                  aria-label={`Ver foto ${i + 1}`}
                 >
-                  <Image
-                    src={resolveImageUrl(url)}
-                    alt=""
-                    fill
-                    sizes="64px"
-                    className="object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
+                  {statusLabel}
+                </span>
+              ) : null
+            }
+          />
         </div>
 
         <div className="flex flex-col gap-4">
@@ -182,6 +193,64 @@ export default function ItemDetailPage() {
               {item.description}
             </p>
           </div>
+
+          {canModerate && (
+            <div className="rounded-2xl border border-red-200 bg-red-50/60 p-4">
+              <p className="text-sm font-semibold text-navy">Moderação</p>
+              <p className="mt-1 text-xs text-muted">
+                Ações disponíveis para administradores.
+              </p>
+              <textarea
+                value={modReason}
+                onChange={(e) => setModReason(e.target.value)}
+                rows={2}
+                maxLength={500}
+                placeholder="Motivo (opcional)"
+                className="mt-3 w-full rounded-lg border border-fog bg-white px-3 py-2 text-sm outline-none focus:border-brand"
+              />
+              {modError && (
+                <p className="mt-2 text-sm text-red-700">{modError}</p>
+              )}
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  disabled={modBusy || isConcluded}
+                  onClick={() => void moderateItem("takeDown")}
+                  className="flex-1 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  Remover do feed
+                </button>
+                <button
+                  type="button"
+                  disabled={modBusy}
+                  onClick={() => void moderateItem("delete")}
+                  className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                >
+                  Excluir
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-3 text-xs font-medium">
+                <Link
+                  href={`/perfil/${item.user.id}`}
+                  className="text-brand hover:underline"
+                >
+                  Ver perfil do vendedor
+                </Link>
+                <Link
+                  href="/dashboard/items"
+                  className="text-brand hover:underline"
+                >
+                  Painel de anúncios
+                </Link>
+                <Link
+                  href="/dashboard/users"
+                  className="text-brand hover:underline"
+                >
+                  Banir / suspender usuários
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -41,6 +41,10 @@ export class AdminService {
   ) {}
 
   async getStats() {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - 29);
+
     const [
       users,
       activeItems,
@@ -51,6 +55,14 @@ export class AdminService {
       bannedUsers,
       suspendedUsers,
       activeWithCategories,
+      salesTotal,
+      donationsConcluded,
+      pendingOrders,
+      negotiatingOrders,
+      deliveredOrders,
+      recentUsers,
+      recentConcluded,
+      recentItems,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.item.count({ where: { status: 'ATIVO' } }),
@@ -68,6 +80,27 @@ export class AdminService {
         where: { status: 'ATIVO' },
         select: { categories: true },
       }),
+      this.prisma.item.count({
+        where: { status: 'CONCLUIDO', isDonation: false },
+      }),
+      this.prisma.item.count({
+        where: { status: 'CONCLUIDO', isDonation: true },
+      }),
+      this.prisma.itemInterest.count({ where: { status: 'PENDENTE' } }),
+      this.prisma.itemInterest.count({ where: { status: 'NEGOCIANDO' } }),
+      this.prisma.itemInterest.count({ where: { status: 'ENTREGUE' } }),
+      this.prisma.user.findMany({
+        where: { createdAt: { gte: since } },
+        select: { createdAt: true },
+      }),
+      this.prisma.item.findMany({
+        where: { status: 'CONCLUIDO', updatedAt: { gte: since } },
+        select: { updatedAt: true, isDonation: true },
+      }),
+      this.prisma.item.findMany({
+        where: { createdAt: { gte: since } },
+        select: { createdAt: true },
+      }),
     ]);
 
     const categoryCounts = new Map<string, number>();
@@ -82,6 +115,41 @@ export class AdminService {
       count: categoryCounts.get(category) ?? 0,
     }));
 
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+    const seriesMap = new Map<
+      string,
+      { date: string; sales: number; donations: number; newUsers: number; newItems: number }
+    >();
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(since);
+      d.setDate(since.getDate() + i);
+      const key = dayKey(d);
+      seriesMap.set(key, {
+        date: key,
+        sales: 0,
+        donations: 0,
+        newUsers: 0,
+        newItems: 0,
+      });
+    }
+    for (const u of recentUsers) {
+      const key = dayKey(u.createdAt);
+      const row = seriesMap.get(key);
+      if (row) row.newUsers += 1;
+    }
+    for (const item of recentItems) {
+      const key = dayKey(item.createdAt);
+      const row = seriesMap.get(key);
+      if (row) row.newItems += 1;
+    }
+    for (const item of recentConcluded) {
+      const key = dayKey(item.updatedAt);
+      const row = seriesMap.get(key);
+      if (!row) continue;
+      if (item.isDonation) row.donations += 1;
+      else row.sales += 1;
+    }
+
     return {
       users,
       activeItems,
@@ -92,6 +160,14 @@ export class AdminService {
       bannedUsers,
       suspendedUsers,
       byCategory,
+      salesTotal,
+      donationsConcluded,
+      ordersByStatus: {
+        PENDENTE: pendingOrders,
+        NEGOCIANDO: negotiatingOrders,
+        ENTREGUE: deliveredOrders,
+      },
+      trends: Array.from(seriesMap.values()),
     };
   }
 
@@ -320,6 +396,64 @@ export class AdminService {
     return updated;
   }
 
+  async listItems(params: {
+    page?: number;
+    limit?: number;
+    status?: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO';
+    search?: string;
+  }) {
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(100, Math.max(1, params.limit ?? 20));
+    const search = params.search?.trim();
+    const where = {
+      ...(params.status ? { status: params.status } : {}),
+      ...(search
+        ? {
+            OR: [
+              { title: { contains: search, mode: 'insensitive' as const } },
+              {
+                user: {
+                  email: { contains: search, mode: 'insensitive' as const },
+                },
+              },
+              {
+                user: {
+                  name: { contains: search, mode: 'insensitive' as const },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, items] = await Promise.all([
+      this.prisma.item.count({ where }),
+      this.prisma.item.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              accountStatus: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      page,
+      limit,
+      items: JSON.parse(JSON.stringify(items)) as typeof items,
+    };
+  }
+
   async takeDownItem(
     itemId: string,
     adminId: string,
@@ -344,7 +478,7 @@ export class AdminService {
         negotiatingWithId: null,
       },
       include: {
-        user: { select: { id: true, name: true } },
+        user: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -370,6 +504,49 @@ export class AdminService {
     });
 
     return updated;
+  }
+
+  async deleteItem(
+    itemId: string,
+    adminId: string,
+    dto: AdminTakeDownItemDto,
+  ) {
+    const item = await this.prisma.item.findUnique({
+      where: { id: itemId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    if (!item) {
+      throw new NotFoundException('Anúncio não encontrado.');
+    }
+
+    const reason =
+      dto.reason?.trim() ||
+      'Anúncio excluído pela moderação.';
+
+    await this.prisma.item.delete({ where: { id: itemId } });
+
+    await this.notifications.create(
+      item.userId,
+      'ITEM_STATUS_CHANGED',
+      'Anúncio excluído pela moderação',
+      `"${item.title}" foi excluído permanentemente. ${reason}`,
+    );
+
+    await this.audit.create({
+      actorId: adminId,
+      action: 'ITEM_DELETE',
+      targetType: 'ITEM',
+      targetId: itemId,
+      summary: `Anúncio excluído: "${item.title}"`,
+      metadata: {
+        reason,
+        ownerId: item.userId,
+        ownerName: item.user.name,
+        ownerEmail: item.user.email,
+      },
+    });
+
+    return { deleted: true, id: itemId, title: item.title };
   }
 
   async listAdmins() {

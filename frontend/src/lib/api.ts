@@ -71,6 +71,14 @@ export type AccountStatus = "ACTIVE" | "SUSPENDED" | "BANNED";
 
 export type ModerateUserAction = "BAN" | "SUSPEND" | "RESTORE";
 
+export interface AdminTrendPoint {
+  date: string;
+  sales: number;
+  donations: number;
+  newUsers: number;
+  newItems: number;
+}
+
 export interface AdminStats {
   users: number;
   activeItems: number;
@@ -80,6 +88,14 @@ export interface AdminStats {
   openTickets: number;
   bannedUsers?: number;
   suspendedUsers?: number;
+  salesTotal?: number;
+  donationsConcluded?: number;
+  ordersByStatus?: {
+    PENDENTE: number;
+    NEGOCIANDO: number;
+    ENTREGUE: number;
+  };
+  trends?: AdminTrendPoint[];
   byCategory: Array<{ category: Category; count: number }>;
 }
 
@@ -270,7 +286,12 @@ export interface ItemInterest {
     price?: string | null;
     isDonation?: boolean;
   };
-  buyer: { id: string; name: string };
+  buyer: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+  };
 }
 
 export interface CreateOrderInput {
@@ -591,6 +612,38 @@ export const api = {
       token,
     }),
 
+  getAdminItems: (
+    token: string,
+    params?: {
+      page?: number;
+      limit?: number;
+      status?: ItemStatus;
+      search?: string;
+    },
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.status) query.set("status", params.status);
+    if (params?.search) query.set("search", params.search);
+    const qs = query.toString();
+    return request<{
+      total: number;
+      page: number;
+      limit: number;
+      items: Array<
+        Item & {
+          user: {
+            id: string;
+            name: string;
+            email: string;
+            accountStatus?: AccountStatus;
+          };
+        }
+      >;
+    }>(`/admin/items${qs ? `?${qs}` : ""}`, { token });
+  },
+
   takeDownItem: (
     token: string,
     itemId: string,
@@ -601,6 +654,20 @@ export const api = {
       body: JSON.stringify(data ?? {}),
       token,
     }),
+
+  adminDeleteItem: (
+    token: string,
+    itemId: string,
+    data?: { reason?: string },
+  ) =>
+    request<{ deleted: boolean; id: string; title: string }>(
+      `/admin/items/${itemId}`,
+      {
+        method: "DELETE",
+        body: JSON.stringify(data ?? {}),
+        token,
+      },
+    ),
 
   getAdminAdmins: (token: string) =>
     request<

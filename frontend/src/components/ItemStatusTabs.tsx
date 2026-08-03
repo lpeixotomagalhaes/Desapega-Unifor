@@ -12,6 +12,7 @@ import {
   type ItemInterest,
   type ItemStatus,
 } from "@/lib/api";
+import { formatBrazilianPhoneDisplay } from "@/lib/phone";
 
 export type MyAdsTabId = "publicados" | "negociando" | "concluidos" | "interessados";
 type TabId = MyAdsTabId;
@@ -20,7 +21,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "publicados", label: "Publicados" },
   { id: "negociando", label: "Em negociação" },
   { id: "concluidos", label: "Vendidos e doados" },
-  { id: "interessados", label: "Pedidos" },
+  { id: "interessados", label: "Interessados" },
 ];
 
 const EMPTY_MESSAGES: Record<Exclude<TabId, "interessados">, string> = {
@@ -63,6 +64,7 @@ export function ItemStatusTabs({
   onInterestUpdated,
 }: ItemStatusTabsProps) {
   const [tab, setTab] = useState<TabId>(() => parseInitialTab(initialTab));
+  const [filterItemId, setFilterItemId] = useState<string | null>(null);
   const [actingKey, setActingKey] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -79,11 +81,24 @@ export function ItemStatusTabs({
     };
   }, [items]);
 
+  const interestCountByItem = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of interests ?? []) {
+      map.set(row.itemId, (map.get(row.itemId) ?? 0) + 1);
+    }
+    return map;
+  }, [interests]);
+
   const counts: Record<TabId, number | null> = {
     publicados: items ? grouped.publicados.length : null,
     negociando: items ? grouped.negociando.length : null,
     concluidos: items ? grouped.concluidos.length : null,
     interessados: interests ? interests.length : null,
+  };
+
+  const openInterestsForItem = (itemId: string) => {
+    setFilterItemId(itemId);
+    setTab("interessados");
   };
 
   const changeStatus = async (
@@ -123,7 +138,6 @@ export function ItemStatusTabs({
     try {
       const updated = await api.updateOrderStatus(token, orderId, status);
       onInterestUpdated?.(updated);
-      // Atualiza o card do anúncio após mudança de status do pedido.
       const refreshed = await api.getMyItems(token);
       const match = refreshed.find((i) => i.id === updated.itemId);
       if (match) onItemUpdated(match);
@@ -145,7 +159,10 @@ export function ItemStatusTabs({
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id !== "interessados") setFilterItemId(null);
+            }}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-soft ${
               tab === t.id
                 ? "bg-navy text-white"
@@ -175,7 +192,9 @@ export function ItemStatusTabs({
           items={items === null ? null : grouped[tab]}
           emptyMessage={EMPTY_MESSAGES[tab]}
           deletingId={deletingId}
+          interestCountByItem={interestCountByItem}
           onDeleteItem={onDeleteItem}
+          onViewInterests={openInterestsForItem}
           renderActions={(item) => (
             <StatusActions
               item={item}
@@ -187,6 +206,8 @@ export function ItemStatusTabs({
       ) : (
         <InterestsPanel
           interests={interests}
+          filterItemId={filterItemId}
+          onClearFilter={() => setFilterItemId(null)}
           actingKey={actingKey}
           onConfirmNegotiation={(orderId) =>
             void changeOrderStatus(orderId, "NEGOCIANDO")
@@ -204,13 +225,17 @@ function ItemsPanel({
   items,
   emptyMessage,
   deletingId,
+  interestCountByItem,
   onDeleteItem,
+  onViewInterests,
   renderActions,
 }: {
   items: Item[] | null;
   emptyMessage: string;
   deletingId: string | null;
+  interestCountByItem: Map<string, number>;
   onDeleteItem: (id: string) => void;
+  onViewInterests: (itemId: string) => void;
   renderActions: (item: Item) => React.ReactNode;
 }) {
   if (items === null) {
@@ -239,6 +264,8 @@ function ItemsPanel({
             item={item}
             onDelete={onDeleteItem}
             deleting={deletingId === item.id}
+            interestCount={interestCountByItem.get(item.id) ?? 0}
+            onViewInterests={onViewInterests}
           />
           {renderActions(item)}
         </div>
@@ -331,11 +358,15 @@ function formatOrderValue(order: ItemInterest): string {
 
 function InterestsPanel({
   interests,
+  filterItemId,
+  onClearFilter,
   actingKey,
   onConfirmNegotiation,
   onConfirmDelivery,
 }: {
   interests: ItemInterest[] | null;
+  filterItemId: string | null;
+  onClearFilter: () => void;
   actingKey: string | null;
   onConfirmNegotiation: (orderId: string) => void;
   onConfirmDelivery: (orderId: string) => void;
@@ -350,111 +381,168 @@ function InterestsPanel({
     );
   }
 
+  const filtered = filterItemId
+    ? interests.filter((i) => i.itemId === filterItemId)
+    : interests;
+
   if (interests.length === 0) {
     return (
       <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
-        Nenhum pedido nos seus anúncios ainda.
+        Nenhum interessado nos seus anúncios ainda. Quando alguém enviar um
+        pedido, aparece aqui.
       </p>
     );
   }
 
+  const filterTitle = filterItemId
+    ? filtered[0]?.item.title ?? "Anúncio"
+    : null;
+
   return (
-    <ul className="flex flex-col gap-3">
-      {interests.map((interest) => {
-        const negotiatingKey = `order:${interest.id}:NEGOCIANDO`;
-        const deliveryKey = `order:${interest.id}:ENTREGUE`;
-        const acting =
-          actingKey === negotiatingKey || actingKey === deliveryKey;
-        return (
-          <li
-            key={interest.id}
-            className="rounded-xl border border-fog bg-white p-3 sm:p-4"
+    <div className="flex flex-col gap-3">
+      {filterItemId && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand/20 bg-brand/5 px-4 py-2.5 text-sm">
+          <p className="text-navy">
+            Interessados em{" "}
+            <span className="font-semibold">{filterTitle}</span>
+          </p>
+          <button
+            type="button"
+            onClick={onClearFilter}
+            className="text-xs font-semibold text-brand hover:underline"
           >
-            <div className="flex gap-3">
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-mist">
-                <Image
-                  src={resolveImageUrl(interest.item.imageUrl)}
-                  alt={interest.item.title}
-                  fill
-                  sizes="56px"
-                  className="object-cover"
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <Link
-                      href={`/itens/${interest.item.id}`}
-                      className="line-clamp-1 text-sm font-semibold text-navy hover:underline"
-                    >
-                      {interest.item.title}
-                    </Link>
-                    <p className="text-xs text-muted">
-                      Pedido de{" "}
-                      <span className="font-medium">{interest.buyer.name}</span>
-                    </p>
+            Ver todos
+          </button>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <p className="rounded-xl border border-fog bg-white p-8 text-center text-sm text-muted">
+          Nenhum interessado neste anúncio.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {filtered.map((interest) => {
+            const negotiatingKey = `order:${interest.id}:NEGOCIANDO`;
+            const deliveryKey = `order:${interest.id}:ENTREGUE`;
+            const acting =
+              actingKey === negotiatingKey || actingKey === deliveryKey;
+            const phone = interest.buyer.phone;
+            return (
+              <li
+                key={interest.id}
+                className="rounded-xl border border-fog bg-white p-3 sm:p-4"
+              >
+                <div className="flex gap-3">
+                  <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-mist">
+                    <Image
+                      src={resolveImageUrl(interest.item.imageUrl)}
+                      alt={interest.item.title}
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
                   </div>
-                  <span className="rounded-full bg-mist px-2.5 py-1 text-[11px] font-semibold text-navy/80">
-                    {ORDER_STATUS_LABEL[interest.status] ?? interest.status}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <Link
+                          href={`/itens/${interest.item.id}`}
+                          className="line-clamp-1 text-sm font-semibold text-navy hover:underline"
+                        >
+                          {interest.item.title}
+                        </Link>
+                        <p className="text-xs text-muted">
+                          Interessado:{" "}
+                          <Link
+                            href={`/perfil/${interest.buyer.id}`}
+                            className="font-medium text-brand hover:underline"
+                          >
+                            {interest.buyer.name}
+                          </Link>
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-mist px-2.5 py-1 text-[11px] font-semibold text-navy/80">
+                        {ORDER_STATUS_LABEL[interest.status] ?? interest.status}
+                      </span>
+                    </div>
+                    <dl className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
+                      <div>
+                        <dt className="inline font-medium text-navy/70">Curso: </dt>
+                        <dd className="inline">{interest.course || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-medium text-navy/70">
+                          Matrícula:{" "}
+                        </dt>
+                        <dd className="inline">{interest.enrollment || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-medium text-navy/70">Valor: </dt>
+                        <dd className="inline">{formatOrderValue(interest)}</dd>
+                      </div>
+                      <div>
+                        <dt className="inline font-medium text-navy/70">
+                          Encontro:{" "}
+                        </dt>
+                        <dd className="inline">
+                          {interest.meetupDay || "—"} às{" "}
+                          {interest.meetupTime || "—"} —{" "}
+                          {interest.campusBlock || "—"}
+                        </dd>
+                      </div>
+                      {phone && (
+                        <div className="sm:col-span-2">
+                          <dt className="inline font-medium text-navy/70">
+                            WhatsApp:{" "}
+                          </dt>
+                          <dd className="inline">
+                            <a
+                              href={`https://wa.me/${phone.replace(/\D/g, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-medium text-brand hover:underline"
+                            >
+                              {formatBrazilianPhoneDisplay(phone)}
+                            </a>
+                          </dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
                 </div>
-                <dl className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
-                  <div>
-                    <dt className="inline font-medium text-navy/70">Curso: </dt>
-                    <dd className="inline">{interest.course || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-navy/70">
-                      Matrícula:{" "}
-                    </dt>
-                    <dd className="inline">{interest.enrollment || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-navy/70">Valor: </dt>
-                    <dd className="inline">{formatOrderValue(interest)}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-navy/70">
-                      Encontro:{" "}
-                    </dt>
-                    <dd className="inline">
-                      {interest.meetupDay || "—"} às {interest.meetupTime || "—"}{" "}
-                      — {interest.campusBlock || "—"}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap justify-end gap-2">
-              {interest.status === "PENDENTE" && (
-                <button
-                  type="button"
-                  disabled={acting}
-                  onClick={() => onConfirmNegotiation(interest.id)}
-                  className="rounded-lg bg-navy px-3 py-2 text-xs font-semibold text-white transition-soft hover:bg-brand disabled:opacity-50"
-                >
-                  Confirmar negociação
-                </button>
-              )}
-              {interest.status === "NEGOCIANDO" && (
-                <button
-                  type="button"
-                  disabled={acting}
-                  onClick={() => onConfirmDelivery(interest.id)}
-                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition-soft hover:bg-green-700 disabled:opacity-50"
-                >
-                  Confirmar entrega
-                </button>
-              )}
-              {interest.status === "ENTREGUE" && (
-                <span className="text-xs font-medium text-green-700">
-                  Entrega confirmada
-                </span>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  {interest.status === "PENDENTE" && (
+                    <button
+                      type="button"
+                      disabled={acting}
+                      onClick={() => onConfirmNegotiation(interest.id)}
+                      className="rounded-lg bg-navy px-3 py-2 text-xs font-semibold text-white transition-soft hover:bg-brand disabled:opacity-50"
+                    >
+                      Confirmar negociação
+                    </button>
+                  )}
+                  {interest.status === "NEGOCIANDO" && (
+                    <button
+                      type="button"
+                      disabled={acting}
+                      onClick={() => onConfirmDelivery(interest.id)}
+                      className="rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition-soft hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Confirmar entrega
+                    </button>
+                  )}
+                  {interest.status === "ENTREGUE" && (
+                    <span className="text-xs font-medium text-green-700">
+                      Entrega confirmada
+                    </span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

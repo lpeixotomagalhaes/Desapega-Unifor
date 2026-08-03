@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   api,
   ApiError,
@@ -28,10 +29,11 @@ const STATUS_CLASS: Record<AccountStatus, string> = {
   BANNED: "bg-red-50 text-red-800",
 };
 
-export default function DashboardUsersPage() {
+function DashboardUsersInner() {
   const { token, user: me } = useAuth();
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<AdminUserRow[]>([]);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [role, setRole] = useState<UserRole | "">("");
   const [accountStatus, setAccountStatus] = useState<AccountStatus | "">("");
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +44,11 @@ export default function DashboardUsersPage() {
   const [days, setDays] = useState(7);
   const [takeDownItems, setTakeDownItems] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get("email");
+    if (fromQuery) setEmail(fromQuery);
+  }, [searchParams]);
 
   const load = async () => {
     if (!token) return;
@@ -55,6 +62,14 @@ export default function DashboardUsersPage() {
       });
       setUsers(data.users);
       setError(null);
+      if (data.users.length === 1) {
+        const u = data.users[0];
+        setSelected(u);
+        setAction(u.accountStatus === "ACTIVE" ? "SUSPEND" : "RESTORE");
+        setReason(u.moderationReason ?? "");
+        setDays(7);
+        setTakeDownItems(true);
+      }
     } catch {
       setError("Não foi possível carregar os usuários.");
     } finally {
@@ -322,5 +337,15 @@ export default function DashboardUsersPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+export default function DashboardUsersPage() {
+  return (
+    <Suspense
+      fallback={<p className="text-sm text-muted">Carregando usuários…</p>}
+    >
+      <DashboardUsersInner />
+    </Suspense>
   );
 }
