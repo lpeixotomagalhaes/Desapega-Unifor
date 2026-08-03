@@ -5,7 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  assertMarketplaceAllowed,
+  isSuspensionExpired,
+} from '../auth/account-access.util';
 import { buildWhatsAppUrl } from '../common/phone.util';
+import { normalizeMeetupDay } from '../common/meetup-day.util';
 import type { Prisma } from '../generated/prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,6 +32,7 @@ const STATUS_MESSAGES: Record<string, string> = {
   NEGOCIANDO: 'Este anúncio entrou em negociação com outro interessado.',
   CONCLUIDO: 'Este anúncio foi concluído e não está mais disponível.',
   ATIVO: 'Este anúncio voltou a ficar disponível.',
+  SUSPENSO: 'Este anúncio foi suspenso pela moderação.',
 };
 
 @Injectable()
@@ -83,7 +89,11 @@ export class ItemsService {
 
   async create(userId: string, dto: CreateItemDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user?.phone) {
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+    await this.ensureMarketplaceAccess(user);
+    if (!user.phone) {
       throw new BadRequestException(
         'Complete seu perfil com um WhatsApp antes de anunciar.',
       );
@@ -130,6 +140,10 @@ export class ItemsService {
   }
 
   async updateStatus(userId: string, id: string, dto: UpdateItemStatusDto) {
+    const actor = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!actor) throw new NotFoundException('Usuário não encontrado.');
+    await this.ensureMarketplaceAccess(actor);
+
     const item = await this.prisma.item.findUnique({ where: { id } });
     if (!item) {
       throw new NotFoundException('Anúncio não encontrado.');
@@ -137,6 +151,11 @@ export class ItemsService {
     if (item.userId !== userId) {
       throw new ForbiddenException(
         'Você só pode alterar seus próprios anúncios.',
+      );
+    }
+    if (item.status === 'SUSPENSO') {
+      throw new ForbiddenException(
+        'Este anúncio está suspenso pela moderação e não pode ser alterado.',
       );
     }
 
@@ -183,6 +202,21 @@ export class ItemsService {
   }
 
   async createOrder(buyerId: string, itemId: string, dto: CreateOrderDto) {
+    const buyerAccount = await this.prisma.user.findUnique({
+      where: { id: buyerId },
+      select: {
+        id: true,
+        name: true,
+        accountStatus: true,
+        suspendedUntil: true,
+        moderationReason: true,
+      },
+    });
+    if (!buyerAccount) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+    await this.ensureMarketplaceAccess(buyerAccount);
+
     const item = await this.prisma.item.findUnique({
       where: { id: itemId },
       include: { user: { select: { id: true, name: true, phone: true } } },
@@ -195,7 +229,7 @@ export class ItemsService {
         'Você não pode pedir o seu próprio anúncio.',
       );
     }
-    if (item.status === 'CONCLUIDO') {
+    if (item.status === 'CONCLUIDO' || item.status === 'SUSPENSO') {
       throw new ConflictException('Este anúncio não está mais disponível.');
     }
     if (!item.user.phone) {
@@ -203,6 +237,8 @@ export class ItemsService {
         'O vendedor ainda não configurou um WhatsApp de contato.',
       );
     }
+
+    const meetupDay = normalizeMeetupDay(dto.meetupDay);
 
     const campusBlock =
       dto.campusBlock === 'Outro' && dto.customBlock?.trim()
@@ -225,7 +261,7 @@ export class ItemsService {
       enrollment: dto.enrollment.trim(),
       acceptListedPrice,
       offeredPrice,
-      meetupDay: dto.meetupDay.trim(),
+      meetupDay,
       meetupTime: dto.meetupTime.trim(),
       campusBlock,
       status: 'PENDENTE' as const,
@@ -235,10 +271,7 @@ export class ItemsService {
       where: { itemId_buyerId: { itemId, buyerId } },
     });
 
-    const buyer = await this.prisma.user.findUnique({
-      where: { id: buyerId },
-      select: { name: true },
-    });
+    const buyer = buyerAccount;
 
     let order;
     if (existing) {
@@ -345,6 +378,10 @@ export class ItemsService {
     orderId: string,
     dto: UpdateOrderStatusDto,
   ) {
+    const seller = await this.prisma.user.findUnique({ where: { id: sellerId } });
+    if (!seller) throw new NotFoundException('Usuário não encontrado.');
+    await this.ensureMarketplaceAccess(seller);
+
     const order = await this.prisma.itemInterest.findUnique({
       where: { id: orderId },
       include: {
@@ -358,6 +395,11 @@ export class ItemsService {
     if (order.item.userId !== sellerId) {
       throw new ForbiddenException(
         'Você só pode atualizar pedidos dos seus anúncios.',
+      );
+    }
+    if (order.item.status === 'SUSPENSO') {
+      throw new ForbiddenException(
+        'Este anúncio está suspenso pela moderação.',
       );
     }
 
@@ -605,5 +647,29 @@ export class ItemsService {
 
     await this.prisma.item.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  private async ensureMarketplaceAccess(user: {
+    id?: string;
+    accountStatus: string;
+    suspendedUntil: Date | null;
+    moderationReason: string | null;
+  }) {
+    if (isSuspensionExpired(user as never)) {
+      if (user.id) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            accountStatus: 'ACTIVE',
+            suspendedUntil: null,
+            moderationReason: null,
+            moderatedAt: null,
+            moderatedById: null,
+          },
+        });
+      }
+      return;
+    }
+    assertMarketplaceAllowed(user as never);
   }
 }

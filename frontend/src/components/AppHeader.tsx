@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
+import { AccountRestrictionBanner } from "@/components/AccountRestrictionBanner";
 import { BrandLogo, BrandTagline, DesapegaWordmark } from "@/components/BrandLogo";
 import { ProfileAvatar, ProfileDrawer } from "@/components/ProfileDrawer";
 import { SearchBar } from "@/components/SearchBar";
 import { SupportComplaintModal } from "@/components/SupportComplaintModal";
-import type { AppNotification } from "@/lib/api";
+import { CATEGORIES, type AppNotification, type Category } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useMobileChrome } from "@/lib/mobile-chrome";
 import { useNotifications } from "@/lib/notifications";
 
 type Panel = "notifications" | null;
@@ -35,10 +37,16 @@ function AppHeaderInner() {
   const searchParams = useSearchParams();
   const { user, signOut } = useAuth();
   const notifications = useNotifications();
+  const {
+    menuOpen,
+    supportOpen,
+    openMenu,
+    closeMenu,
+    openSupport,
+    closeSupport,
+  } = useMobileChrome();
   const [query, setQuery] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [supportOpen, setSupportOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const notifId = useId();
@@ -49,13 +57,23 @@ function AppHeaderInner() {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/auth/");
 
-  // Sync input from ?q= when on /app; limpa ao sair da área de busca
+  // Sync da barra: ?q= tem prioridade; senão mostra o rótulo da ?category=
   useEffect(() => {
-    if (onApp) {
-      setQuery(searchParams.get("q") ?? "");
-    } else {
+    if (!onApp) {
       setQuery("");
+      return;
     }
+    const q = searchParams.get("q") ?? "";
+    if (q.trim()) {
+      setQuery(q);
+      return;
+    }
+    const cat = searchParams.get("category");
+    if (cat && cat in CATEGORIES) {
+      setQuery(CATEGORIES[cat as Category]);
+      return;
+    }
+    setQuery("");
   }, [onApp, searchParams]);
 
   useEffect(() => {
@@ -83,35 +101,67 @@ function AppHeaderInner() {
     };
   }, [panel]);
 
-  const goSearch = useCallback(
-    (value: string) => {
-      const q = value.trim();
-      setQuery(q);
-      // Enter vazio → /app sem ?q= (todos os anúncios)
-      if (!q) {
-        router.push("/app");
-        setPanel(null);
-        return;
-      }
+  const goCategory = useCallback(
+    (category: Category) => {
+      if (!(category in CATEGORIES)) return;
+      setQuery(CATEGORIES[category]);
       const params = new URLSearchParams();
-      params.set("q", q);
+      params.set("category", category);
       router.push(`/app?${params.toString()}`);
       setPanel(null);
     },
     [router],
   );
 
+  const goSearch = useCallback(
+    (value: string) => {
+      const q = value.trim();
+      setPanel(null);
+
+      if (!q) {
+        setQuery("");
+        router.push("/app");
+        return;
+      }
+
+      // Se o texto for exatamente o nome de uma categoria, aplica o filtro
+      const matched = (Object.entries(CATEGORIES) as [Category, string][]).find(
+        ([, label]) => label.toLowerCase() === q.toLowerCase(),
+      );
+      if (matched) {
+        goCategory(matched[0]);
+        return;
+      }
+
+      setQuery(q);
+      const params = new URLSearchParams();
+      params.set("q", q);
+      router.push(`/app?${params.toString()}`);
+    },
+    [goCategory, router],
+  );
+
   const handleChange = (value: string) => {
     setQuery(value);
-    if (onApp) {
-      const params = new URLSearchParams(searchParams.toString());
-      if (value.trim()) params.set("q", value.trim());
-      else params.delete("q");
-      // Busca sempre no explorar (todos os anúncios se q vazio)
-      params.delete("tab");
-      const qs = params.toString();
-      router.replace(qs ? `/app?${qs}` : "/app", { scroll: false });
+    if (!onApp) return;
+
+    const params = new URLSearchParams();
+    const trimmed = value.trim();
+
+    // Texto livre: remove categoria da URL até confirmar com Enter
+    if (trimmed) {
+      const matched = (Object.entries(CATEGORIES) as [Category, string][]).find(
+        ([, label]) => label.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (matched) {
+        params.set("category", matched[0]);
+      } else {
+        params.set("q", trimmed);
+      }
     }
+
+    const qs = params.toString();
+    router.replace(qs ? `/app?${qs}` : "/app", { scroll: false });
   };
 
   const toggleNotifications = () => {
@@ -139,50 +189,44 @@ function AppHeaderInner() {
           scrolled ? "header-scrolled" : ""
         }`}
       >
-        <div
-          className={`mx-auto max-w-7xl items-center gap-x-3 gap-y-2.5 px-3 py-3 sm:gap-x-4 sm:px-5 sm:py-3.5 ${
-            isAuthPage
-              ? "flex"
-              : "grid grid-cols-[auto_1fr_auto] md:flex md:gap-4"
-          }`}
-        >
+        <div className="mx-auto flex max-w-7xl items-center gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3 md:gap-4 md:py-3.5">
           <Link
             href="/"
-            className="header-nav-item group col-start-1 row-start-1 flex shrink-0 items-center gap-2.5 sm:gap-3"
+            className="header-nav-item group flex shrink-0 items-center gap-2 sm:gap-2.5"
             style={{ animationDelay: "0.05s" }}
           >
             <BrandLogo
               mark="blue"
-              height={40}
+              height={36}
               className="transition-soft group-hover:opacity-90"
             />
-            <div className="hidden min-[360px]:block">
-              <DesapegaWordmark className="text-base leading-tight sm:text-lg md:text-xl" />
+            <div className="hidden md:block">
+              <DesapegaWordmark className="text-lg leading-tight md:text-xl" />
               <BrandTagline className="mt-0.5 text-xs sm:text-sm" />
             </div>
           </Link>
 
           {!isAuthPage && (
             <div
-              className="header-nav-item col-span-3 row-start-2 min-w-0 md:order-none md:col-auto md:row-auto md:flex-1"
+              className="header-nav-item min-w-0 flex-1"
               style={{ animationDelay: "0.1s" }}
             >
               <SearchBar
                 value={query}
                 onChange={handleChange}
                 onSubmitSearch={goSearch}
+                onSelectCategory={goCategory}
               />
-              <BrandTagline className="mt-1.5 text-xs md:hidden" />
             </div>
           )}
 
           <nav
-            className="header-nav-item col-start-3 row-start-1 ml-auto flex shrink-0 items-center gap-2 md:ml-0"
+            className="header-nav-item ml-auto flex shrink-0 items-center gap-2"
             style={{ animationDelay: "0.16s" }}
           >
             <Link
               href="/login"
-              className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-soft sm:px-4 sm:text-base ${
+              className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-soft sm:px-4 sm:py-2 sm:text-base ${
                 pathname.startsWith("/login")
                   ? "border-brand bg-brand/5 text-brand"
                   : "border-navy/25 text-navy hover:border-brand hover:text-brand"
@@ -215,37 +259,37 @@ function AppHeaderInner() {
           scrolled ? "header-scrolled" : ""
         }`}
       >
-        <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2.5 px-3 py-3 sm:gap-x-4 sm:px-5 sm:py-3.5 md:flex md:gap-4">
+        <div className="mx-auto flex max-w-7xl items-center gap-2.5 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3 md:gap-4 md:py-3.5">
           <Link
             href="/"
-            className="header-nav-item group col-start-1 row-start-1 flex shrink-0 items-center gap-2.5 sm:gap-3"
+            className="header-nav-item group flex shrink-0 items-center gap-2 sm:gap-2.5"
             style={{ animationDelay: "0.05s" }}
           >
             <BrandLogo
               mark="blue"
-              height={40}
+              height={36}
               className="transition-soft group-hover:opacity-90"
             />
-            <div className="hidden min-[360px]:block">
-              <DesapegaWordmark className="text-base leading-tight sm:text-lg md:text-xl" />
-              <BrandTagline className="mt-0.5 hidden text-xs sm:text-sm md:block" />
+            <div className="hidden md:block">
+              <DesapegaWordmark className="text-lg leading-tight md:text-xl" />
+              <BrandTagline className="mt-0.5 text-xs sm:text-sm" />
             </div>
           </Link>
 
           <div
-            className="header-nav-item col-span-3 row-start-2 min-w-0 md:order-none md:col-auto md:row-auto md:flex-1"
+            className="header-nav-item min-w-0 flex-1"
             style={{ animationDelay: "0.1s" }}
           >
             <SearchBar
               value={query}
               onChange={handleChange}
               onSubmitSearch={goSearch}
+              onSelectCategory={goCategory}
             />
-            <BrandTagline className="mt-1.5 text-xs md:hidden" />
           </div>
 
           <nav
-            className="header-nav-item col-start-3 row-start-1 ml-auto flex shrink-0 items-center gap-1 sm:gap-1.5 md:ml-0"
+            className="header-nav-item flex shrink-0 items-center gap-0.5 sm:gap-1"
             style={{ animationDelay: "0.16s" }}
           >
             <HeaderLink
@@ -256,14 +300,15 @@ function AppHeaderInner() {
             />
 
             <HeaderIconButton
-              label="Reclamar"
+              label="Suporte"
               pressed={supportOpen}
               controls="support-complaint-modal"
               onClick={() => {
                 setPanel(null);
-                setSupportOpen(true);
+                openSupport();
               }}
               icon={<SupportIcon className="h-5 w-5 sm:h-6 sm:w-6" />}
+              className="hidden md:inline-flex"
             />
 
             <div className="relative">
@@ -291,11 +336,11 @@ function AppHeaderInner() {
               type="button"
               onClick={() => {
                 setPanel(null);
-                setProfileOpen(true);
+                openMenu();
               }}
-              className="ml-0.5 inline-flex items-center gap-2 rounded-full border border-fog bg-white p-1 text-sm font-semibold text-navy transition-soft hover:border-brand hover:bg-mist sm:max-w-[14rem] sm:py-1.5 sm:pl-1.5 sm:pr-3.5 sm:text-base"
+              className="ml-0.5 hidden items-center gap-2 rounded-full border border-fog bg-white p-1 text-sm font-semibold text-navy transition-soft hover:border-brand hover:bg-mist md:inline-flex sm:max-w-[14rem] sm:py-1.5 sm:pl-1.5 sm:pr-3.5 sm:text-base"
               aria-haspopup="dialog"
-              aria-expanded={profileOpen}
+              aria-expanded={menuOpen}
               aria-label={`Perfil de ${user.name}`}
             >
               <ProfileAvatar user={user} size={32} />
@@ -316,20 +361,19 @@ function AppHeaderInner() {
         </div>
       </header>
 
+      <AccountRestrictionBanner user={user} />
+
       <ProfileDrawer
-        open={profileOpen}
+        open={menuOpen}
         user={user}
-        onClose={() => setProfileOpen(false)}
+        onClose={closeMenu}
         onSignOut={() => {
           signOut();
           router.push("/");
         }}
       />
 
-      <SupportComplaintModal
-        open={supportOpen}
-        onClose={() => setSupportOpen(false)}
-      />
+      <SupportComplaintModal open={supportOpen} onClose={closeSupport} />
     </>
   );
 }
@@ -378,6 +422,7 @@ function HeaderIconButton({
   controls,
   onClick,
   badgeCount,
+  className = "",
 }: {
   label: string;
   icon: React.ReactNode;
@@ -385,6 +430,7 @@ function HeaderIconButton({
   controls: string;
   onClick: () => void;
   badgeCount?: number;
+  className?: string;
 }) {
   return (
     <button
@@ -398,7 +444,7 @@ function HeaderIconButton({
         pressed
           ? "bg-mist text-navy"
           : "text-navy/75 hover:bg-mist hover:text-navy"
-      }`}
+      } ${className}`}
     >
       <span className="relative shrink-0 text-navy/60 transition-soft group-hover:text-navy">
         {icon}

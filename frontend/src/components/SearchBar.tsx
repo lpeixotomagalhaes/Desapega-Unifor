@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import type { Category } from "@/lib/api";
 import {
   buildSearchSuggestions,
   PLACEHOLDER_PREFIX,
@@ -31,6 +32,8 @@ type SearchBarProps = {
   value: string;
   onChange: (value: string) => void;
   onSubmitSearch: (value: string) => void;
+  /** Quando a sugestão é uma categoria do marketplace. */
+  onSelectCategory?: (category: Category) => void;
   inputId?: string;
 };
 
@@ -38,6 +41,7 @@ export function SearchBar({
   value,
   onChange,
   onSubmitSearch,
+  onSelectCategory,
   inputId = "global-header-search",
 }: SearchBarProps) {
   const listboxId = useId();
@@ -99,6 +103,13 @@ export function SearchBar({
   }, [commitSearch, onChange]);
 
   const pickSuggestion = (item: SearchSuggestion) => {
+    if (item.category && onSelectCategory) {
+      onChange("");
+      setOpen(false);
+      setHighlight(-1);
+      onSelectCategory(item.category);
+      return;
+    }
     onChange(item.query);
     commitSearch(item.query);
   };
@@ -152,10 +163,6 @@ export function SearchBar({
           setOpen(false);
           setHighlight(-1);
           setFocused(false);
-          // Ao sair do campo, limpa o texto (sem forçar navegação)
-          if (value.trim()) {
-            onChange("");
-          }
         }
       }}
     >
@@ -166,7 +173,7 @@ export function SearchBar({
         <div className="relative">
           <input
             id={inputId}
-            type="search"
+            type="text"
             value={value}
             autoComplete="off"
             role="combobox"

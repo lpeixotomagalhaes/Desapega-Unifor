@@ -2,19 +2,19 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import type { UserRole } from '../generated/prisma/enums';
+import type { AccountStatus, UserRole } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from './auth.service';
-import {
-  assertAccountAllowed,
-  isSuspensionExpired,
-} from './account-access.util';
+import { isSuspensionExpired } from './account-access.util';
 
 export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  accountStatus: AccountStatus;
+  suspendedUntil: Date | null;
+  moderationReason: string | null;
 }
 
 /** Atualiza lastSeenAt no máximo a cada 2 minutos por usuário. */
@@ -67,7 +67,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       user.moderationReason = null;
     }
 
-    assertAccountAllowed(user);
+    // Banidos/suspensos podem autenticar e navegar; restrições ficam nas ações.
     void this.touchLastSeen(user.id);
 
     return {
@@ -75,6 +75,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: user.email,
       name: user.name,
       role: user.role,
+      accountStatus: user.accountStatus,
+      suspendedUntil: user.suspendedUntil,
+      moderationReason: user.moderationReason,
     };
   }
 

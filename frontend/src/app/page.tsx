@@ -195,7 +195,7 @@ export default function LandingPage() {
             <Reveal variant="scale" delay={80} className="mt-8 text-center">
               <Link
                 href="/app"
-                className="inline-block rounded-xl border-2 border-navy px-6 py-3 font-semibold text-navy transition-soft hover:-translate-y-0.5 hover:bg-navy hover:text-white"
+                className="inline-block rounded-xl border-2 border-navy px-6 py-3 font-semibold text-navy transition-[color,background-color,border-color,box-shadow] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-navy hover:bg-navy hover:text-white hover:shadow-[0_14px_28px_-12px_rgb(10_31_77_/_0.2)]"
               >
                 Ver todos no app
               </Link>

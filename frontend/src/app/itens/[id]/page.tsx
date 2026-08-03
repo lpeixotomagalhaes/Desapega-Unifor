@@ -81,15 +81,18 @@ export default function ItemDetailPage() {
   }
 
   const isConcluded = item.status === "CONCLUIDO";
+  const isSuspended = item.status === "SUSPENSO";
   const statusLabel = itemStatusLabel(item);
   const canModerate = Boolean(token && isAdmin(user));
 
-  const moderateItem = async (mode: "takeDown" | "delete") => {
+  const moderateItem = async (mode: "suspend" | "restore" | "delete") => {
     if (!token) return;
     const ok = window.confirm(
       mode === "delete"
-        ? "Excluir este anúncio permanentemente?"
-        : "Remover este anúncio do feed?",
+        ? "Excluir este anúncio permanentemente? Não dá para desfazer."
+        : mode === "restore"
+          ? "Reativar este anúncio no feed?"
+          : "Suspender temporariamente? O anúncio sai do feed, mas pode ser reativado.",
     );
     if (!ok) return;
     setModBusy(true);
@@ -100,6 +103,12 @@ export default function ItemDetailPage() {
           reason: modReason.trim() || undefined,
         });
         router.push("/dashboard/items");
+        return;
+      }
+      if (mode === "restore") {
+        const updated = await api.restoreAdminItem(token, item.id);
+        setItem(updated);
+        setModReason("");
         return;
       }
       const updated = await api.takeDownItem(token, item.id, {
@@ -134,7 +143,9 @@ export default function ItemDetailPage() {
             sizes="(max-width: 768px) 100vw, 50vw"
             priority
             enableNav
-            imageClassName={isConcluded ? "grayscale-[35%]" : ""}
+            imageClassName={
+              isConcluded || isSuspended ? "grayscale-[35%]" : ""
+            }
             overlayTopLeft={
               <span className="absolute left-4 top-4 z-[5] max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
                 {formatCategories(item.categories)}
@@ -144,7 +155,11 @@ export default function ItemDetailPage() {
               statusLabel ? (
                 <span
                   className={`absolute right-4 top-4 z-[5] rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
-                    isConcluded ? "bg-navy/80" : "bg-amber-500"
+                    isSuspended
+                      ? "bg-red-600"
+                      : isConcluded
+                        ? "bg-navy/80"
+                        : "bg-amber-500"
                   }`}
                 >
                   {statusLabel}
@@ -214,12 +229,22 @@ export default function ItemDetailPage() {
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  disabled={modBusy || isConcluded}
-                  onClick={() => void moderateItem("takeDown")}
+                  disabled={modBusy || isConcluded || isSuspended}
+                  onClick={() => void moderateItem("suspend")}
                   className="flex-1 rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
                 >
-                  Remover do feed
+                  Suspender
                 </button>
+                {isSuspended && (
+                  <button
+                    type="button"
+                    disabled={modBusy}
+                    onClick={() => void moderateItem("restore")}
+                    className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    Reativar
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={modBusy}
@@ -229,6 +254,9 @@ export default function ItemDetailPage() {
                   Excluir
                 </button>
               </div>
+              <p className="mt-2 text-xs text-muted">
+                Suspender: sai do feed e pode voltar. Excluir: apaga de vez.
+              </p>
               <div className="mt-2 flex flex-wrap gap-3 text-xs font-medium">
                 <Link
                   href={`/perfil/${item.user.id}`}

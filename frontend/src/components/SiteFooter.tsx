@@ -66,7 +66,8 @@ export function SiteFooter() {
             {CATEGORY_KEYS.map((key) => (
               <Link
                 key={key}
-                href={`/app?q=${encodeURIComponent(CATEGORIES[key])}`}
+                href={`/app?category=${key}`}
+                scroll
                 className="footer-chip"
               >
                 {CATEGORIES[key]}

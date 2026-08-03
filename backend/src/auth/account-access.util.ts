@@ -1,7 +1,7 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import type { AccountStatus } from '../generated/prisma/enums';
 
-type AccountGateUser = {
+export type AccountGateUser = {
   accountStatus: AccountStatus;
   suspendedUntil: Date | null;
   moderationReason: string | null;
@@ -16,25 +16,55 @@ export function isSuspensionExpired(user: AccountGateUser): boolean {
   );
 }
 
+/**
+ * Bloqueio total (legado). Preferir assertMarketplaceAllowed —
+ * banidos/suspensos podem navegar, mas não negociar.
+ */
 export function assertAccountAllowed(user: AccountGateUser): void {
   if (user.accountStatus === 'BANNED') {
-    throw new UnauthorizedException(
-      user.moderationReason?.trim()
-        ? `Sua conta foi banida: ${user.moderationReason.trim()}`
-        : 'Sua conta foi banida permanentemente. Entre em contato com o suporte.',
-    );
+    throw new UnauthorizedException(banMessage(user));
   }
 
   if (user.accountStatus === 'SUSPENDED') {
     if (isSuspensionExpired(user)) return;
-    const until = user.suspendedUntil
-      ? ` até ${user.suspendedUntil.toLocaleString('pt-BR')}`
-      : '';
-    const reason = user.moderationReason?.trim()
-      ? ` Motivo: ${user.moderationReason.trim()}`
-      : '';
-    throw new UnauthorizedException(
-      `Sua conta está suspensa${until}.${reason}`,
-    );
+    throw new UnauthorizedException(suspendMessage(user));
   }
+}
+
+/**
+ * Banidos/suspensos podem entrar e navegar, mas não anunciar nem negociar.
+ */
+export function assertMarketplaceAllowed(user: AccountGateUser): void {
+  if (user.accountStatus === 'BANNED') {
+    throw new ForbiddenException(banMessage(user));
+  }
+
+  if (user.accountStatus === 'SUSPENDED') {
+    if (isSuspensionExpired(user)) return;
+    throw new ForbiddenException(suspendMessage(user));
+  }
+}
+
+export function isMarketplaceRestricted(user: AccountGateUser): boolean {
+  if (user.accountStatus === 'BANNED') return true;
+  if (user.accountStatus === 'SUSPENDED' && !isSuspensionExpired(user)) {
+    return true;
+  }
+  return false;
+}
+
+function banMessage(user: AccountGateUser): string {
+  return user.moderationReason?.trim()
+    ? `Sua conta está banida: ${user.moderationReason.trim()}. Você ainda pode navegar, mas não pode anunciar nem negociar.`
+    : 'Sua conta está banida. Você ainda pode navegar, mas não pode anunciar nem negociar. Entre em contato com o suporte.';
+}
+
+function suspendMessage(user: AccountGateUser): string {
+  const until = user.suspendedUntil
+    ? ` até ${user.suspendedUntil.toLocaleString('pt-BR')}`
+    : '';
+  const reason = user.moderationReason?.trim()
+    ? ` Motivo: ${user.moderationReason.trim()}.`
+    : '';
+  return `Sua conta está suspensa${until}.${reason} Você ainda pode navegar, mas não pode anunciar nem negociar.`;
 }

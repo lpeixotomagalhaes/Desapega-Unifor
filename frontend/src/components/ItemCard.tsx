@@ -35,7 +35,7 @@ export function ItemCard({
 
   return (
     <article
-      className={`group hover-lift relative flex flex-col overflow-hidden rounded-2xl border shadow-sm transition-[filter,opacity,background-color,border-color] duration-300 ${
+      className={`group hover-lift relative flex flex-col overflow-hidden rounded-2xl border shadow-sm transition-[filter,opacity,background-color,border-color,box-shadow] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isOwn
           ? "border-fog/80 bg-slate-100/90 opacity-[0.88] grayscale-[45%] saturate-50"
           : "border-fog bg-white"

@@ -1,11 +1,10 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { ItemStatus } from '../../generated/prisma/enums';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class UpdateItemStatusDto {
-  @IsEnum(ItemStatus, {
-    message: `Status inválido. Use um de: ${Object.values(ItemStatus).join(', ')}.`,
+  @IsIn(['ATIVO', 'NEGOCIANDO', 'CONCLUIDO'], {
+    message: 'Status inválido. Use ATIVO, NEGOCIANDO ou CONCLUIDO.',
   })
-  status: ItemStatus;
+  status: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO';
 
   @IsOptional()
   @IsString()

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { CampusDeliveryTip } from "@/components/CampusDeliveryTip";
 import { ImageDropzone, type ImageDraft } from "@/components/ImageDropzone";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
@@ -12,12 +12,23 @@ import {
   api,
   ApiError,
   CATEGORIES,
+  isMarketplaceRestricted,
   type Category,
   type CreateItemInput,
   type Item,
   type ItemInterest,
 } from "@/lib/api";
 import { useAuthRedirect } from "@/lib/auth";
+
+function parseCategory(value: string | null): Category | null {
+  if (!value) return null;
+  const raw = value.trim();
+  if (raw in CATEGORIES) return raw as Category;
+  const byLabel = (Object.entries(CATEGORIES) as [Category, string][]).find(
+    ([, label]) => label.toLowerCase() === raw.toLowerCase(),
+  );
+  return byLabel?.[0] ?? null;
+}
 
 type Tab = "explorar" | "anunciar" | "meus" | "salvos";
 
@@ -51,17 +62,24 @@ function AppShell() {
   const searchParams = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
   const search = searchParams.get("q") ?? "";
+  const category = parseCategory(searchParams.get("category"));
 
   const selectTab = useCallback(
     (next: Tab) => {
       const params = new URLSearchParams();
-      if (next !== "explorar") params.set("tab", next);
-      const q = search.trim();
-      if (q) params.set("q", q);
+      if (next !== "explorar") {
+        // Meus anúncios / Anunciar / Salvos: limpa busca e categoria
+        params.set("tab", next);
+      } else {
+        const cat = searchParams.get("category");
+        if (cat) params.set("category", cat);
+        const q = searchParams.get("q")?.trim();
+        if (q) params.set("q", q);
+      }
       const qs = params.toString();
       router.replace(qs ? `/app?${qs}` : "/app", { scroll: false });
     },
-    [router, search],
+    [router, searchParams],
   );
 
   return (
@@ -89,7 +107,9 @@ function AppShell() {
       </nav>
 
       <main className="flex-1 animate-fade-up px-4 pb-6 pt-4 md:pb-10">
-        {tab === "explorar" && <ExploreTab search={search} />}
+        {tab === "explorar" && (
+          <ExploreTab search={search} category={category} />
+        )}
         {tab === "anunciar" && (
           <NewItemTab onCreated={() => selectTab("meus")} />
         )}
@@ -102,10 +122,35 @@ function AppShell() {
   );
 }
 
-function ExploreTab({ search }: { search: string }) {
+function ExploreTab({
+  search,
+  category,
+}: {
+  search: string;
+  category: Category | null;
+}) {
+  const router = useRouter();
   const [items, setItems] = useState<Item[] | null>(null);
-  const [category, setCategory] = useState<Category | null>(null);
   const [error, setError] = useState(false);
+
+  const setCategoryFilter = useCallback(
+    (next: Category | null) => {
+      const params = new URLSearchParams();
+      if (next) params.set("category", next);
+      const qs = params.toString();
+      router.push(qs ? `/app?${qs}` : "/app", { scroll: false });
+    },
+    [router],
+  );
+
+  const chipRefs = useRef<Partial<Record<Category | "all", HTMLButtonElement | null>>>(
+    {},
+  );
+
+  useEffect(() => {
+    const el = chipRefs.current[category ?? "all"];
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [category]);
 
   useEffect(() => {
     setItems(null);
@@ -127,7 +172,10 @@ function ExploreTab({ search }: { search: string }) {
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button
           type="button"
-          onClick={() => setCategory(null)}
+          ref={(node) => {
+            chipRefs.current.all = node;
+          }}
+          onClick={() => setCategoryFilter(null)}
           className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-soft ${
             category === null
               ? "bg-navy text-white"
@@ -140,7 +188,10 @@ function ExploreTab({ search }: { search: string }) {
           <button
             key={key}
             type="button"
-            onClick={() => setCategory(key)}
+            ref={(node) => {
+              chipRefs.current[key] = node;
+            }}
+            onClick={() => setCategoryFilter(key)}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-soft ${
               category === key
                 ? "bg-navy text-white"
@@ -214,6 +265,15 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
 
   if (!ready || !token || !user?.phone || !user.course || !user.enrollment) {
     return null;
+  }
+
+  if (isMarketplaceRestricted(user)) {
+    return (
+      <div className="mx-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-950">
+        Sua conta está restrita e não pode publicar anúncios. Você ainda pode
+        navegar e ver o site normalmente.
+      </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

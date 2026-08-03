@@ -66,7 +66,7 @@ export class AdminController {
   listItems(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Query('status') status?: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO',
+    @Query('status') status?: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO' | 'SUSPENSO',
     @Query('search') search?: string,
   ) {
     return this.adminService.listItems({
@@ -84,6 +84,14 @@ export class AdminController {
     @Body() dto: AdminTakeDownItemDto,
   ) {
     return this.adminService.takeDownItem(id, user.id, dto);
+  }
+
+  @Patch('items/:id/restore')
+  restoreItem(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.adminService.restoreItem(id, user.id);
   }
 
   @Delete('items/:id')

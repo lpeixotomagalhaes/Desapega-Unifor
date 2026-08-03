@@ -42,8 +42,10 @@ export interface SearchSuggestion {
   id: string;
   label: string;
   kind: SuggestionKind;
-  /** Value applied to the search query (category uses display label). */
+  /** Value applied to the search query (text search). */
   query: string;
+  /** When set, selection should apply a category filter instead of text search. */
+  category?: Category;
 }
 
 function normalize(value: string): string {
@@ -147,6 +149,7 @@ export function buildSearchSuggestions(
       label,
       kind: "category",
       query: label,
+      category: key,
     });
   }
 

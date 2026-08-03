@@ -27,6 +27,7 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
   ATIVO: "Ativo",
   NEGOCIANDO: "Negociando",
   CONCLUIDO: "Concluído",
+  SUSPENSO: "Suspenso",
 };
 
 export default function DashboardItemsPage() {
@@ -64,12 +65,14 @@ export default function DashboardItemsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, search, status]);
 
-  const runAction = async (mode: "takeDown" | "delete") => {
+  const runAction = async (mode: "suspend" | "restore" | "delete") => {
     if (!token || !selected) return;
     const confirmMsg =
       mode === "delete"
-        ? `Excluir permanentemente "${selected.title}"?`
-        : `Remover "${selected.title}" do feed (marcar como concluído)?`;
+        ? `Excluir permanentemente "${selected.title}"? Esta ação não pode ser desfeita.`
+        : mode === "restore"
+          ? `Reativar "${selected.title}" no feed?`
+          : `Suspender temporariamente "${selected.title}"? O anúncio sai do feed, mas pode ser reativado depois.`;
     if (!window.confirm(confirmMsg)) return;
 
     setSaving(true);
@@ -83,6 +86,19 @@ export default function DashboardItemsPage() {
         setItems((prev) => prev.filter((i) => i.id !== selected.id));
         setSelected(null);
         setMessage("Anúncio excluído permanentemente.");
+      } else if (mode === "restore") {
+        const updated = await api.restoreAdminItem(token, selected.id);
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === updated.id ? { ...i, ...updated, user: i.user } : i,
+          ),
+        );
+        setSelected((prev) =>
+          prev && prev.id === updated.id
+            ? { ...prev, ...updated, user: prev.user }
+            : prev,
+        );
+        setMessage("Anúncio reativado no feed.");
       } else {
         const updated = await api.takeDownItem(token, selected.id, {
           reason: reason.trim() || undefined,
@@ -97,7 +113,7 @@ export default function DashboardItemsPage() {
             ? { ...prev, ...updated, user: prev.user }
             : prev,
         );
-        setMessage("Anúncio removido do feed.");
+        setMessage("Anúncio suspenso temporariamente.");
       }
       setReason("");
     } catch (err) {
@@ -114,7 +130,8 @@ export default function DashboardItemsPage() {
       <div>
         <h1 className="font-display text-2xl font-bold text-navy">Anúncios</h1>
         <p className="mt-1 text-sm text-muted">
-          Remova do feed ou exclua anúncios que violem as regras.
+          <strong>Suspender</strong> tira do feed temporariamente (dá para
+          reativar). <strong>Excluir</strong> apaga o anúncio de vez.
         </p>
       </div>
 
@@ -134,6 +151,7 @@ export default function DashboardItemsPage() {
           <option value="">Todos os status</option>
           <option value="ATIVO">Ativos</option>
           <option value="NEGOCIANDO">Negociando</option>
+          <option value="SUSPENSO">Suspensos</option>
           <option value="CONCLUIDO">Concluídos</option>
         </select>
       </div>
@@ -254,12 +272,26 @@ export default function DashboardItemsPage() {
 
               <button
                 type="button"
-                disabled={saving || selected.status === "CONCLUIDO"}
-                onClick={() => void runAction("takeDown")}
+                disabled={
+                  saving ||
+                  selected.status === "SUSPENSO" ||
+                  selected.status === "CONCLUIDO"
+                }
+                onClick={() => void runAction("suspend")}
                 className="w-full rounded-lg bg-amber-600 py-2.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
               >
-                Remover do feed
+                Suspender temporariamente
               </button>
+              {selected.status === "SUSPENSO" && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void runAction("restore")}
+                  className="w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  Reativar no feed
+                </button>
+              )}
               <button
                 type="button"
                 disabled={saving}
@@ -268,6 +300,10 @@ export default function DashboardItemsPage() {
               >
                 Excluir permanentemente
               </button>
+              <p className="text-xs text-muted">
+                Suspender = some do feed, mas o registro fica e pode voltar.
+                Excluir = apaga tudo, sem volta.
+              </p>
             </div>
           )}
         </aside>

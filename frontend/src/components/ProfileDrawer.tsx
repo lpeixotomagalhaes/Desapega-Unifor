@@ -14,6 +14,12 @@ type ProfileDrawerProps = {
 
 const MENU_ITEMS = [
   {
+    href: "/app",
+    label: "Buscar anúncios",
+    description: "Explorar o marketplace do campus",
+    icon: "search",
+  },
+  {
     href: "/app?tab=meus",
     label: "Meus anúncios",
     description: "Gerencie o que você publicou",
@@ -210,6 +216,19 @@ function MenuIcon({
         <circle cx="12" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.75" />
         <path
           d="M5.5 19.5c1.5-3 4-4.5 6.5-4.5s5 1.5 6.5 4.5"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+  if (name === "search") {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+        <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.75" />
+        <path
+          d="M20 20l-3.2-3.2"
           stroke="currentColor"
           strokeWidth="1.75"
           strokeLinecap="round"

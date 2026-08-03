@@ -75,7 +75,9 @@ export function ItemStatusTabs({
   const grouped = useMemo(() => {
     const all = items ?? [];
     return {
-      publicados: all.filter((i) => i.status === "ATIVO"),
+      publicados: all.filter(
+        (i) => i.status === "ATIVO" || i.status === "SUSPENSO",
+      ),
       negociando: all.filter((i) => i.status === "NEGOCIANDO"),
       concluidos: all.filter((i) => i.status === "CONCLUIDO"),
     };
@@ -296,6 +298,14 @@ function StatusActions({
       >
         Marcar como {item.isDonation ? "doado" : "vendido"}
       </button>
+    );
+  }
+
+  if (item.status === "SUSPENSO") {
+    return (
+      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        Suspenso pela moderação — aguardando reativação.
+      </p>
     );
   }
 

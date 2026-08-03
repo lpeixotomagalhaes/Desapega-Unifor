@@ -314,7 +314,7 @@ export class AdminService {
         targetId,
         'ACCOUNT_MODERATION',
         'Conta banida',
-        `Sua conta foi banida permanentemente. Motivo: ${reason}`,
+        `Sua conta foi banida. Motivo: ${reason}. Você ainda pode entrar e navegar no site, mas não pode anunciar nem negociar produtos.`,
       );
 
       await this.audit.create({
@@ -375,7 +375,7 @@ export class AdminService {
       targetId,
       'ACCOUNT_MODERATION',
       'Conta suspensa',
-      `Sua conta foi suspensa até ${suspendedUntil.toLocaleString('pt-BR')}. Motivo: ${reason}`,
+      `Sua conta foi suspensa até ${suspendedUntil.toLocaleString('pt-BR')}. Motivo: ${reason}. Você ainda pode navegar, mas não pode anunciar nem negociar.`,
     );
 
     await this.audit.create({
@@ -399,7 +399,7 @@ export class AdminService {
   async listItems(params: {
     page?: number;
     limit?: number;
-    status?: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO';
+    status?: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO' | 'SUSPENSO';
     search?: string;
   }) {
     const page = Math.max(1, params.page ?? 1);
@@ -469,12 +469,12 @@ export class AdminService {
 
     const reason =
       dto.reason?.trim() ||
-      'Anúncio removido pela moderação por violar as regras da plataforma.';
+      'Anúncio suspenso pela moderação por violar as regras da plataforma.';
 
     const updated = await this.prisma.item.update({
       where: { id: itemId },
       data: {
-        status: 'CONCLUIDO',
+        status: 'SUSPENSO',
         negotiatingWithId: null,
       },
       include: {
@@ -485,19 +485,81 @@ export class AdminService {
     await this.notifications.create(
       item.userId,
       'ITEM_STATUS_CHANGED',
-      'Anúncio removido pela moderação',
-      `"${item.title}" foi removido do feed. ${reason}`,
+      'Anúncio suspenso pela moderação',
+      `"${item.title}" foi suspenso temporariamente e saiu do feed. ${reason}`,
+      item.id,
+    );
+
+    const interested = await this.prisma.itemInterest.findMany({
+      where: { itemId, status: { in: ['PENDENTE', 'NEGOCIANDO'] } },
+      select: { buyerId: true },
+    });
+    const buyerIds = [
+      ...new Set(interested.map((i) => i.buyerId).filter((id) => id !== item.userId)),
+    ];
+    if (buyerIds.length > 0) {
+      await this.notifications.notifyMany(
+        buyerIds,
+        'ITEM_STATUS_CHANGED',
+        `Anúncio suspenso: "${item.title}"`,
+        'Este anúncio foi suspenso pela moderação e não está mais disponível.',
+        item.id,
+      );
+    }
+
+    await this.audit.create({
+      actorId: adminId,
+      action: 'ITEM_SUSPEND',
+      targetType: 'ITEM',
+      targetId: itemId,
+      summary: `Anúncio suspenso: "${item.title}"`,
+      metadata: {
+        reason,
+        ownerId: item.userId,
+        ownerName: item.user.name,
+      },
+    });
+
+    return updated;
+  }
+
+  async restoreItem(itemId: string, adminId: string) {
+    const item = await this.prisma.item.findUnique({
+      where: { id: itemId },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    if (!item) {
+      throw new NotFoundException('Anúncio não encontrado.');
+    }
+    if (item.status !== 'SUSPENSO') {
+      throw new BadRequestException(
+        'Só é possível reativar anúncios que estão suspensos.',
+      );
+    }
+
+    const updated = await this.prisma.item.update({
+      where: { id: itemId },
+      data: { status: 'ATIVO', negotiatingWithId: null },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    await this.notifications.create(
+      item.userId,
+      'ITEM_STATUS_CHANGED',
+      'Anúncio reativado',
+      `"${item.title}" voltou a ficar visível no feed.`,
       item.id,
     );
 
     await this.audit.create({
       actorId: adminId,
-      action: 'ITEM_TAKE_DOWN',
+      action: 'ITEM_RESTORE',
       targetType: 'ITEM',
       targetId: itemId,
-      summary: `Anúncio removido: "${item.title}"`,
+      summary: `Anúncio reativado: "${item.title}"`,
       metadata: {
-        reason,
         ownerId: item.userId,
         ownerName: item.user.name,
       },
@@ -523,6 +585,14 @@ export class AdminService {
       dto.reason?.trim() ||
       'Anúncio excluído pela moderação.';
 
+    const interested = await this.prisma.itemInterest.findMany({
+      where: { itemId, status: { in: ['PENDENTE', 'NEGOCIANDO'] } },
+      select: { buyerId: true },
+    });
+    const buyerIds = [
+      ...new Set(interested.map((i) => i.buyerId).filter((id) => id !== item.userId)),
+    ];
+
     await this.prisma.item.delete({ where: { id: itemId } });
 
     await this.notifications.create(
@@ -531,6 +601,15 @@ export class AdminService {
       'Anúncio excluído pela moderação',
       `"${item.title}" foi excluído permanentemente. ${reason}`,
     );
+
+    if (buyerIds.length > 0) {
+      await this.notifications.notifyMany(
+        buyerIds,
+        'ITEM_STATUS_CHANGED',
+        `Anúncio removido: "${item.title}"`,
+        'Este anúncio foi excluído pela moderação e não está mais disponível.',
+      );
+    }
 
     await this.audit.create({
       actorId: adminId,

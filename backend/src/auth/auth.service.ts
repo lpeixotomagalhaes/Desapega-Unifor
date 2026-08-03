@@ -17,10 +17,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import type { UserRole } from '../generated/prisma/enums';
-import {
-  assertAccountAllowed,
-  isSuspensionExpired,
-} from './account-access.util';
+import { isSuspensionExpired } from './account-access.util';
 
 export interface JwtPayload {
   sub: string;
@@ -39,6 +36,9 @@ const ME_SELECT = {
   course: true,
   enrollment: true,
   role: true,
+  accountStatus: true,
+  suspendedUntil: true,
+  moderationReason: true,
   onboardingCompletedAt: true,
   createdAt: true,
 } as const;
@@ -282,9 +282,8 @@ export class AuthService {
           moderatedById: null,
         },
       });
-    } else {
-      assertAccountAllowed(account);
     }
+    // Banidos/suspensos podem entrar; ações de marketplace são bloqueadas à parte.
 
     const user = await this.prisma.user.update({
       where: { id: userId },

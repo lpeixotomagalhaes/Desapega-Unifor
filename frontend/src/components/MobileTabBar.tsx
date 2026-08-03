@@ -2,34 +2,41 @@
 
 import type { ReactNode } from "react";
 
-type Tab = "explorar" | "anunciar" | "meus";
+export type MobileTabId =
+  | "inicio"
+  | "buscar"
+  | "anunciar"
+  | "suporte"
+  | "menu";
 
 type TabIconProps = { className?: string; active?: boolean };
 
 const TABS: {
-  id: Tab;
+  id: MobileTabId;
   label: string;
   Icon: (props: TabIconProps) => ReactNode;
 }[] = [
-  { id: "explorar", label: "Explorar", Icon: ExploreIcon },
+  { id: "inicio", label: "Início", Icon: HomeIcon },
+  { id: "buscar", label: "Buscar", Icon: SearchIcon },
   { id: "anunciar", label: "Anunciar", Icon: AnnounceIcon },
-  { id: "meus", label: "Meus anúncios", Icon: AdsIcon },
+  { id: "suporte", label: "Suporte", Icon: SupportIcon },
+  { id: "menu", label: "Menu", Icon: MenuIcon },
 ];
 
 type MobileTabBarProps = {
-  active: Tab;
-  onSelect: (tab: Tab) => void;
+  active: MobileTabId | null;
+  onSelect: (tab: MobileTabId) => void;
 };
 
-/** Bottom nav OLX-like — only visible on mobile (md:hidden). */
+/** Bottom nav estilo OLX — só no mobile (md:hidden). */
 export function MobileTabBar({ active, onSelect }: MobileTabBarProps) {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 flex border-t border-fog bg-white/95 backdrop-blur md:hidden"
-      style={{ paddingBottom: "max(0.4rem, env(safe-area-inset-bottom))" }}
+      style={{ paddingBottom: "max(0.35rem, env(safe-area-inset-bottom))" }}
       aria-label="Navegação principal"
     >
-      <div className="mx-auto flex w-full max-w-lg items-end justify-between px-2 pt-1">
+      <div className="mx-auto flex w-full max-w-lg items-end justify-between px-1 pt-1">
         {TABS.map((t) => {
           const isActive = active === t.id;
           const isAnnounce = t.id === "anunciar";
@@ -53,7 +60,7 @@ export function MobileTabBar({ active, onSelect }: MobileTabBarProps) {
                   <t.Icon className="h-6 w-6" active />
                 </span>
                 <span
-                  className={`text-[11px] font-semibold ${
+                  className={`text-[10px] font-semibold ${
                     isActive ? "text-navy" : "text-muted"
                   }`}
                 >
@@ -68,7 +75,7 @@ export function MobileTabBar({ active, onSelect }: MobileTabBarProps) {
               key={t.id}
               type="button"
               onClick={() => onSelect(t.id)}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold transition-soft ${
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-semibold transition-soft ${
                 isActive ? "text-navy" : "text-muted hover:text-brand"
               }`}
               aria-current={isActive ? "page" : undefined}
@@ -79,7 +86,10 @@ export function MobileTabBar({ active, onSelect }: MobileTabBarProps) {
               />
               {t.label}
               {isActive && (
-                <span className="mt-0.5 h-0.5 w-6 rounded-full bg-navy" aria-hidden />
+                <span
+                  className="mt-0.5 h-0.5 w-5 rounded-full bg-navy"
+                  aria-hidden
+                />
               )}
             </button>
           );
@@ -89,7 +99,20 @@ export function MobileTabBar({ active, onSelect }: MobileTabBarProps) {
   );
 }
 
-function ExploreIcon({ className }: { className?: string; active?: boolean }) {
+function HomeIcon({ className }: TabIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function SearchIcon({ className }: TabIconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
       <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.85" />
@@ -103,7 +126,7 @@ function ExploreIcon({ className }: { className?: string; active?: boolean }) {
   );
 }
 
-function AnnounceIcon({ className }: { className?: string; active?: boolean }) {
+function AnnounceIcon({ className }: TabIconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
@@ -116,21 +139,33 @@ function AnnounceIcon({ className }: { className?: string; active?: boolean }) {
   );
 }
 
-function AdsIcon({ className }: { className?: string; active?: boolean }) {
+function SupportIcon({ className }: TabIconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5v-7z"
+        d="M12 3a8 8 0 0 0-8 8v2.5A2.5 2.5 0 0 0 6.5 16H8v-4H5.2A6.8 6.8 0 0 1 12 5a6.8 6.8 0 0 1 6.8 7H16v4h1.5a2.5 2.5 0 0 0 2.5-2.5V11a8 8 0 0 0-8-8z"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinejoin="round"
       />
       <path
-        d="M12 12v8M4.5 9.2 12 13.5l7.5-4.3"
+        d="M9.5 19.5c.8 1 1.9 1.5 2.5 1.5s1.7-.5 2.5-1.5"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
-        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MenuIcon({ className }: TabIconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16M4 12h16M4 17h16"
+        stroke="currentColor"
+        strokeWidth="1.85"
+        strokeLinecap="round"
       />
     </svg>
   );

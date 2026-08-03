@@ -7,6 +7,7 @@ import {
   api,
   ApiError,
   formatPrice,
+  isMarketplaceRestricted,
   type Item,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -25,12 +26,28 @@ const CAMPUS_BLOCKS = [
   "Outro",
 ] as const;
 
+const MONTHS = [
+  { value: 1, label: "Janeiro" },
+  { value: 2, label: "Fevereiro" },
+  { value: 3, label: "Março" },
+  { value: 4, label: "Abril" },
+  { value: 5, label: "Maio" },
+  { value: 6, label: "Junho" },
+  { value: 7, label: "Julho" },
+  { value: 8, label: "Agosto" },
+  { value: 9, label: "Setembro" },
+  { value: 10, label: "Outubro" },
+  { value: 11, label: "Novembro" },
+  { value: 12, label: "Dezembro" },
+] as const;
+
 type FormData = {
   course: string;
   enrollment: string;
   acceptListedPrice: boolean;
   offeredPrice: string;
-  meetupDay: string;
+  meetupDayOfMonth: string;
+  meetupMonth: string;
   meetupTime: string;
   campusBlock: string;
   customBlock: string;
@@ -43,21 +60,25 @@ export function InterestOrderForm({ item }: { item: Item }) {
   const router = useRouter();
   const { user, token, loading: authLoading, refreshUser } = useAuth();
   const isOwner = user?.id === item.user.id;
-  const isConcluded = item.status === "CONCLUIDO";
+  const isConcluded =
+    item.status === "CONCLUIDO" || item.status === "SUSPENSO";
   const isDonation = item.isDonation;
+  const restricted = isMarketplaceRestricted(user);
 
   const totalSteps = isDonation ? 2 : 3;
   const [step, setStep] = useState(1);
+  const [erro, setErro] = useState("");
+  const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [whatsappUrl, setWhatsappUrl] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState("");
+
   const [form, setForm] = useState<FormData>({
     course: "",
     enrollment: "",
     acceptListedPrice: true,
     offeredPrice: "",
-    meetupDay: "",
+    meetupDayOfMonth: "",
+    meetupMonth: "",
     meetupTime: "",
     campusBlock: CAMPUS_BLOCKS[0],
     customBlock: "",
@@ -67,12 +88,35 @@ export function InterestOrderForm({ item }: { item: Item }) {
     if (!user) return;
     setForm((prev) => ({
       ...prev,
-      course:
-        prev.course ||
-        (user.course && isUniforCourse(user.course) ? user.course : ""),
-      enrollment: prev.enrollment || user.enrollment || "",
+      course: user.course?.trim() || prev.course,
+      enrollment: user.enrollment?.trim() || prev.enrollment,
     }));
   }, [user]);
+
+  const setField = <K extends keyof FormData>(key: K, value: FormData[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const daysInSelectedMonth = useMemo(() => {
+    const month = Number(form.meetupMonth);
+    if (!month) return 31;
+    const year = new Date().getFullYear();
+    return new Date(year, month, 0).getDate();
+  }, [form.meetupMonth]);
+
+  const buildMeetupDay = (): string | null => {
+    const day = Number(form.meetupDayOfMonth);
+    const month = Number(form.meetupMonth);
+    if (!day || !month) return null;
+    if (day < 1 || day > daysInSelectedMonth) return null;
+    const year = new Date().getFullYear();
+    const candidate = new Date(year, month - 1, day);
+    candidate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (candidate.getTime() < today.getTime()) return null;
+    return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}`;
+  };
 
   const visualStep = useMemo(() => {
     if (isDonation) return step === 1 ? 1 : 2;
@@ -92,10 +136,6 @@ export function InterestOrderForm({ item }: { item: Item }) {
       return false;
     }
     return true;
-  };
-
-  const setField = <K extends keyof FormData>(key: K, value: FormData[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const avancarEtapa1 = () => {
@@ -126,9 +166,18 @@ export function InterestOrderForm({ item }: { item: Item }) {
 
   const handleSubmit = async () => {
     if (!ensureAuth() || !token) return;
+    if (restricted) {
+      setErro(
+        "Sua conta está restrita e não pode negociar produtos no momento.",
+      );
+      return;
+    }
 
-    if (!form.meetupDay.trim()) {
-      setErro("Informe o dia do encontro.");
+    const meetupDay = buildMeetupDay();
+    if (!meetupDay) {
+      setErro(
+        "Escolha um dia e mês válidos. A data do encontro não pode ser no passado.",
+      );
       return;
     }
     if (!form.meetupTime.trim()) {
@@ -154,7 +203,7 @@ export function InterestOrderForm({ item }: { item: Item }) {
           !isDonation && !form.acceptListedPrice
             ? Number(form.offeredPrice.replace(",", "."))
             : undefined,
-        meetupDay: form.meetupDay.trim(),
+        meetupDay,
         meetupTime: form.meetupTime.trim(),
         campusBlock: form.campusBlock,
         customBlock:
@@ -210,8 +259,19 @@ export function InterestOrderForm({ item }: { item: Item }) {
           Anúncio indisponível
         </p>
         <p className="mt-1 text-sm text-muted">
-          Este item já foi {item.isDonation ? "doado" : "vendido"}.
+          {item.status === "SUSPENSO"
+            ? "Este anúncio foi suspenso pela moderação."
+            : `Este item já foi ${item.isDonation ? "doado" : "vendido"}.`}
         </p>
+      </div>
+    );
+  }
+
+  if (restricted) {
+    return (
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
+        Sua conta está restrita e não pode negociar produtos. Você ainda pode
+        navegar pelos anúncios.
       </div>
     );
   }
@@ -367,12 +427,55 @@ export function InterestOrderForm({ item }: { item: Item }) {
           <p className="text-xs font-bold uppercase tracking-wide text-brand">
             Encontro no campus
           </p>
-          <input
-            className={inputClass}
-            type="date"
-            value={form.meetupDay}
-            onChange={(e) => setField("meetupDay", e.target.value)}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs font-medium text-navy/70">
+              Dia
+              <select
+                className={`${inputClass} mt-1`}
+                value={form.meetupDayOfMonth}
+                onChange={(e) => setField("meetupDayOfMonth", e.target.value)}
+              >
+                <option value="">Dia</option>
+                {Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1).map(
+                  (d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+            <label className="block text-xs font-medium text-navy/70">
+              Mês
+              <select
+                className={`${inputClass} mt-1`}
+                value={form.meetupMonth}
+                onChange={(e) => {
+                  setField("meetupMonth", e.target.value);
+                  const maxDay = e.target.value
+                    ? new Date(
+                        new Date().getFullYear(),
+                        Number(e.target.value),
+                        0,
+                      ).getDate()
+                    : 31;
+                  if (Number(form.meetupDayOfMonth) > maxDay) {
+                    setField("meetupDayOfMonth", "");
+                  }
+                }}
+              >
+                <option value="">Mês</option>
+                {MONTHS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-muted">
+            Sem escolha de ano — só dias futuros deste calendário.
+          </p>
           <input
             className={inputClass}
             type="time"

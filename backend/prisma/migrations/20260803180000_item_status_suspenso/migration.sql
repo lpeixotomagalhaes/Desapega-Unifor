@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "ItemStatus" ADD VALUE IF NOT EXISTS 'SUSPENSO';

@@ -152,13 +152,14 @@ body {
 
 @utility hover-lift {
   transition:
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.7s cubic-bezier(0.22, 1, 0.36, 1);
   &:hover {
-    transform: translateY(-2px);
+    border-color: rgb(10 31 77 / 0.18);
     box-shadow:
-      0 10px 22px -8px rgb(10 31 77 / 0.14),
-      0 4px 8px -4px rgb(10 31 77 / 0.08);
+      0 14px 28px -12px rgb(10 31 77 / 0.16),
+      0 6px 12px -6px rgb(10 31 77 / 0.08);
   }
 }
 

@@ -85,6 +85,7 @@ enum ItemStatus {
   ATIVO
   NEGOCIANDO
   CONCLUIDO
+  SUSPENSO
 }
 
 model Item {

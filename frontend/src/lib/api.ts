@@ -14,7 +14,7 @@ export const CATEGORIES = {
 
 export type Category = keyof typeof CATEGORIES;
 
-export type ItemStatus = "ATIVO" | "NEGOCIANDO" | "CONCLUIDO";
+export type ItemStatus = "ATIVO" | "NEGOCIANDO" | "CONCLUIDO" | "SUSPENSO";
 
 export interface Item {
   id: string;
@@ -54,6 +54,8 @@ export type SupportTicketStatus =
   | "RESOLVED"
   | "CLOSED";
 
+export type AccountStatus = "ACTIVE" | "SUSPENDED" | "BANNED";
+
 export interface SessionUser {
   id: string;
   name: string;
@@ -64,11 +66,11 @@ export interface SessionUser {
   course?: string | null;
   enrollment?: string | null;
   role?: UserRole;
+  accountStatus?: AccountStatus;
+  suspendedUntil?: string | null;
+  moderationReason?: string | null;
   onboardingCompletedAt: string | null;
 }
-
-export type AccountStatus = "ACTIVE" | "SUSPENDED" | "BANNED";
-
 export type ModerateUserAction = "BAN" | "SUSPEND" | "RESTORE";
 
 export interface AdminTrendPoint {
@@ -655,6 +657,12 @@ export const api = {
       token,
     }),
 
+  restoreAdminItem: (token: string, itemId: string) =>
+    request<Item>(`/admin/items/${itemId}/restore`, {
+      method: "PATCH",
+      token,
+    }),
+
   adminDeleteItem: (
     token: string,
     itemId: string,
@@ -752,8 +760,22 @@ export function formatCategories(categories?: Category[] | null): string {
 
 export function itemStatusLabel(item: Item): string | null {
   if (item.status === "NEGOCIANDO") return "Em negociação";
+  if (item.status === "SUSPENSO") return "Suspenso";
   if (item.status === "CONCLUIDO") return item.isDonation ? "Doado" : "Vendido";
   return null;
+}
+
+/** Conta banida/suspensa: pode navegar, sem anunciar/negociar. */
+export function isMarketplaceRestricted(
+  user: SessionUser | null | undefined,
+): boolean {
+  if (!user?.accountStatus) return false;
+  if (user.accountStatus === "BANNED") return true;
+  if (user.accountStatus === "SUSPENDED") {
+    if (!user.suspendedUntil) return true;
+    return new Date(user.suspendedUntil).getTime() > Date.now();
+  }
+  return false;
 }
 
 /** Resolve caminhos relativos de upload (`/uploads/...`) para URL absoluta da API. */
