@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useId, useRef, useState } from "react";
 import { AccountRestrictionBanner } from "@/components/AccountRestrictionBanner";
 import { BrandLogo, BrandTagline, DesapegaWordmark } from "@/components/BrandLogo";
+import { OfflineStatusBanner } from "@/components/OfflineBanner";
 import { ProfileAvatar, ProfileDrawer } from "@/components/ProfileDrawer";
 import { SearchBar } from "@/components/SearchBar";
 import { SupportComplaintModal } from "@/components/SupportComplaintModal";
@@ -183,6 +184,7 @@ function AppHeaderInner() {
       pathname.startsWith("/completar-perfil");
 
     return (
+      <>
       <header
         ref={headerRef}
         className={`header-animate sticky top-0 z-30 border-b border-fog bg-white/95 backdrop-blur transition-soft ${
@@ -248,6 +250,8 @@ function AppHeaderInner() {
           </nav>
         </div>
       </header>
+      <OfflineStatusBanner />
+      </>
     );
   }
 
@@ -362,6 +366,7 @@ function AppHeaderInner() {
       </header>
 
       <AccountRestrictionBanner user={user} />
+      <OfflineStatusBanner />
 
       <ProfileDrawer
         open={menuOpen}

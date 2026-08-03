@@ -17,6 +17,7 @@ import {
   type Item,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { getViewedItems, recordViewedItem } from "@/lib/viewedItems";
 
 export default function ItemDetailPage() {
   const params = useParams<{ id: string }>();
@@ -37,10 +38,21 @@ export default function ItemDetailPage() {
     api
       .getItem(id)
       .then((data) => {
-        if (!cancelled) setItem(data);
+        if (!cancelled) {
+          setItem(data);
+          void recordViewedItem(data);
+        }
       })
-      .catch(() => {
-        if (!cancelled) setNotFound(true);
+      .catch(async () => {
+        if (cancelled) return;
+        // Offline / falha de rede: tenta o histórico local de vistos
+        const viewed = await getViewedItems();
+        const cached = viewed.find((row) => row.id === id);
+        if (cached) {
+          setItem(cached);
+        } else {
+          setNotFound(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -52,7 +64,9 @@ export default function ItemDetailPage() {
       <div className="mx-auto flex max-w-2xl flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
         <h1 className="text-xl font-bold text-navy">Anúncio não encontrado</h1>
         <p className="text-muted">
-          Esse item pode ter sido removido ou já foi concluído.
+          {typeof navigator !== "undefined" && !navigator.onLine
+            ? "Você está offline e este anúncio ainda não foi aberto neste aparelho. Abra-o online uma vez para vê-lo depois sem conexão."
+            : "Esse item pode ter sido removido ou já foi concluído."}
         </p>
         <Link
           href="/app"

@@ -7,6 +7,7 @@ import { AdminClock } from "@/components/AdminClock";
 import { AdminGate } from "@/components/AdminGate";
 import { AdminProfileDrawer } from "@/components/AdminProfileDrawer";
 import { BrandLogo, BrandTagline, DesapegaWordmark } from "@/components/BrandLogo";
+import { OfflineStatusBanner } from "@/components/OfflineBanner";
 import { ProfileAvatar } from "@/components/ProfileDrawer";
 import { isSuperAdmin } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -149,6 +150,8 @@ function DashboardShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+
+      <OfflineStatusBanner />
 
       <div className="relative flex min-h-0 flex-1">
         {/* Espaço reservado + hit-area à esquerda (desktop) */}

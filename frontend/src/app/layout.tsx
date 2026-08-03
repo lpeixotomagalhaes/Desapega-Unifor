@@ -8,6 +8,7 @@ import { MobileTabBarGlobal } from "@/components/MobileTabBarGlobal";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { AuthProvider } from "@/lib/auth";
 import { MobileChromeProvider } from "@/lib/mobile-chrome";
+import { OfflineQueueProvider } from "@/lib/offlineQueue";
 import { PendingReviewsProvider } from "@/lib/pendingReviews";
 import { SavedItemsProvider } from "@/lib/savedItems";
 
@@ -60,16 +61,18 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans">
         <AuthProvider>
-          <MobileChromeProvider>
-            <SavedItemsProvider>
-              <PendingReviewsProvider>
-                <AppHeader />
-                <MainShell>{children}</MainShell>
-                <MobileTabBarGlobal />
-                <CompleteProfileGate />
-              </PendingReviewsProvider>
-            </SavedItemsProvider>
-          </MobileChromeProvider>
+          <OfflineQueueProvider>
+            <MobileChromeProvider>
+              <SavedItemsProvider>
+                <PendingReviewsProvider>
+                  <AppHeader />
+                  <MainShell>{children}</MainShell>
+                  <MobileTabBarGlobal />
+                  <CompleteProfileGate />
+                </PendingReviewsProvider>
+              </SavedItemsProvider>
+            </MobileChromeProvider>
+          </OfflineQueueProvider>
         </AuthProvider>
         <ServiceWorkerRegister />
       </body>

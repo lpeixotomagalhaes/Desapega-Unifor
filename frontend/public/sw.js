@@ -7,11 +7,17 @@
  *   offline, responde com a última versão salva no cache.
  * - Demais assets (JS, CSS, imagens): stale-while-revalidate — responde
  *   rápido com o cache e atualiza em segundo plano.
+ *
+ * Background Sync (Chrome/Android): o tag "sync-pending-items" avisa as
+ * abas abertas para publicar anúncios enfileirados. No iOS Safari o sync
+ * não existe — o flush principal continua sendo o evento "online" na app.
  */
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const STATIC_CACHE = `desapega-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `desapega-dynamic-${CACHE_VERSION}`;
+const DYNAMIC_CACHE_LIMIT = 100;
+const SYNC_TAG = "sync-pending-items";
 
 const PRECACHE_URLS = [
   "/",
@@ -45,13 +51,29 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+/** Mantém o cache dinâmico com no máximo DYNAMIC_CACHE_LIMIT entradas. */
+async function trimCache(cacheName, maxEntries) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length <= maxEntries) return;
+  const excess = keys.length - maxEntries;
+  for (let i = 0; i < excess; i++) {
+    await cache.delete(keys[i]);
+  }
+}
+
+async function putInDynamicCache(request, response) {
+  const cache = await caches.open(DYNAMIC_CACHE);
+  await cache.put(request, response);
+  await trimCache(DYNAMIC_CACHE, DYNAMIC_CACHE_LIMIT);
+}
+
 /** Busca na rede e guarda uma cópia no cache dinâmico. */
 async function networkFirst(request) {
-  const cache = await caches.open(DYNAMIC_CACHE);
   try {
     const response = await fetch(request);
     if (response.ok) {
-      cache.put(request, response.clone());
+      await putInDynamicCache(request, response.clone());
     }
     return response;
   } catch {
@@ -72,13 +94,12 @@ async function networkFirst(request) {
 
 /** Responde com o cache e atualiza em segundo plano. */
 async function staleWhileRevalidate(request) {
-  const cache = await caches.open(DYNAMIC_CACHE);
   const cached = await caches.match(request);
 
   const networkFetch = fetch(request)
-    .then((response) => {
+    .then(async (response) => {
       if (response.ok) {
-        cache.put(request, response.clone());
+        await putInDynamicCache(request, response.clone());
       }
       return response;
     })
@@ -105,4 +126,22 @@ self.addEventListener("fetch", (event) => {
     // Assets estáticos do próprio app
     event.respondWith(staleWhileRevalidate(request));
   }
+});
+
+/**
+ * Background Sync: quando a conexão volta (mesmo com a aba em background),
+ * pede às abas abertas para executar o flush da fila IndexedDB.
+ * Sem abas abertas, o flush ocorre no próximo carregamento / evento online.
+ */
+self.addEventListener("sync", (event) => {
+  if (event.tag !== SYNC_TAG) return;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(
+      (clients) => {
+        for (const client of clients) {
+          client.postMessage({ type: "FLUSH_PENDING_ITEMS" });
+        }
+      },
+    ),
+  );
 });
