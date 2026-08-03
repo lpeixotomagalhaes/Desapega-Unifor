@@ -17,6 +17,10 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import type { UserRole } from '../generated/prisma/enums';
+import {
+  assertAccountAllowed,
+  isSuspensionExpired,
+} from './account-access.util';
 
 export interface JwtPayload {
   sub: string;
@@ -32,6 +36,8 @@ const ME_SELECT = {
   phone: true,
   avatarUrl: true,
   bio: true,
+  course: true,
+  enrollment: true,
   role: true,
   onboardingCompletedAt: true,
   createdAt: true,
@@ -68,7 +74,14 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
-      data: { name: dto.name, email: dto.email, passwordHash, phone },
+      data: {
+        name: dto.name.trim(),
+        email: dto.email.trim().toLowerCase(),
+        passwordHash,
+        phone,
+        course: dto.course.trim(),
+        enrollment: dto.enrollment.trim(),
+      },
     });
 
     await this.sendWelcome(user.id, user.name);
@@ -193,11 +206,19 @@ export class AuthService {
       phone?: string;
       avatarUrl?: string;
       bio?: string | null;
+      course?: string | null;
+      enrollment?: string | null;
     } = {};
     if (dto.name) data.name = dto.name;
     if (dto.avatarUrl) data.avatarUrl = dto.avatarUrl;
     if (dto.bio !== undefined) {
       data.bio = dto.bio.trim() ? dto.bio.trim() : null;
+    }
+    if (dto.course !== undefined) {
+      data.course = dto.course?.trim() ? dto.course.trim() : null;
+    }
+    if (dto.enrollment !== undefined) {
+      data.enrollment = dto.enrollment?.trim() ? dto.enrollment.trim() : null;
     }
     if (dto.phone) {
       const phone = normalizeBrazilianPhone(dto.phone);
@@ -238,6 +259,33 @@ export class AuthService {
   }
 
   private async buildAuthResponse(userId: string, isNewUser: boolean) {
+    const account = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        accountStatus: true,
+        suspendedUntil: true,
+        moderationReason: true,
+      },
+    });
+    if (!account) {
+      throw new UnauthorizedException('Usuário não encontrado.');
+    }
+
+    if (isSuspensionExpired(account)) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          accountStatus: 'ACTIVE',
+          suspendedUntil: null,
+          moderationReason: null,
+          moderatedAt: null,
+          moderatedById: null,
+        },
+      });
+    } else {
+      assertAccountAllowed(account);
+    }
+
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: { lastSeenAt: new Date() },

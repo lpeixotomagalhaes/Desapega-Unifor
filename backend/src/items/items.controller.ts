@@ -12,6 +12,7 @@ import {
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
+import { CreateCommentDto } from './dto/create-comment.dto';
 import { CreateItemDto } from './dto/create-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryItemsDto } from './dto/query-items.dto';
@@ -65,6 +66,21 @@ export class ItemsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.itemsService.findOne(id);
+  }
+
+  @Get(':id/comments')
+  listComments(@Param('id') id: string) {
+    return this.itemsService.listComments(id);
+  }
+
+  @Post(':id/comments')
+  @UseGuards(JwtAuthGuard)
+  createComment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CreateCommentDto,
+  ) {
+    return this.itemsService.createComment(user.id, id, dto);
   }
 
   @Post()

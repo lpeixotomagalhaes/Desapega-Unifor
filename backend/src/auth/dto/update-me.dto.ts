@@ -4,8 +4,10 @@ import {
   IsUrl,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { IsBrazilianPhone } from '../../common/validators/is-br-phone.validator';
+import { IsUniforCourse } from '../../common/validators/is-unifor-course.validator';
 
 export class UpdateMeDto {
   @IsOptional()
@@ -27,4 +29,17 @@ export class UpdateMeDto {
   @IsString()
   @MaxLength(280, { message: 'A bio deve ter no máximo 280 caracteres.' })
   bio?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsString()
+  @IsUniforCourse()
+  course?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsString()
+  @MinLength(3, { message: 'Informe uma matrícula válida.' })
+  @MaxLength(40, { message: 'A matrícula deve ter no máximo 40 caracteres.' })
+  enrollment?: string | null;
 }

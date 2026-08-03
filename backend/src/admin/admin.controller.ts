@@ -15,6 +15,9 @@ import { RolesGuard } from '../auth/roles.guard';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
 import { UserRole } from '../generated/prisma/enums';
 import { AdminService } from './admin.service';
+import { AuditService } from './audit.service';
+import { AdminTakeDownItemDto } from './dto/admin-take-down-item.dto';
+import { ModerateUserDto } from './dto/moderate-user.dto';
 import { PromoteAdminDto } from './dto/promote-admin.dto';
 import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
 
@@ -22,7 +25,10 @@ import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Get('stats')
   getStats() {
@@ -35,13 +41,33 @@ export class AdminController {
     @Query('limit') limit?: string,
     @Query('role') role?: UserRole,
     @Query('email') email?: string,
+    @Query('accountStatus') accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED',
   ) {
     return this.adminService.listUsers({
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       role,
       email,
+      accountStatus,
     });
+  }
+
+  @Patch('users/:id/moderate')
+  moderateUser(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ModerateUserDto,
+  ) {
+    return this.adminService.moderateUser(id, user.id, dto);
+  }
+
+  @Patch('items/:id/take-down')
+  takeDownItem(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AdminTakeDownItemDto,
+  ) {
+    return this.adminService.takeDownItem(id, user.id, dto);
   }
 
   @Get('admins')
@@ -52,14 +78,38 @@ export class AdminController {
 
   @Post('admins')
   @Roles(UserRole.SUPER_ADMIN)
-  promoteAdmin(@Body() dto: PromoteAdminDto) {
-    return this.adminService.promoteAdmin(dto);
+  async promoteAdmin(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PromoteAdminDto,
+  ) {
+    const result = await this.adminService.promoteAdmin(dto);
+    await this.auditService.create({
+      actorId: user.id,
+      action: 'ADMIN_PROMOTE',
+      targetType: 'USER',
+      targetId: result.id,
+      summary: `Promovido a ADMIN: ${result.email}`,
+      metadata: { email: result.email },
+    });
+    return result;
   }
 
   @Patch('admins/:id/revoke')
   @Roles(UserRole.SUPER_ADMIN)
-  revokeAdmin(@Param('id') id: string) {
-    return this.adminService.revokeAdmin(id);
+  async revokeAdmin(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    const result = await this.adminService.revokeAdmin(id);
+    await this.auditService.create({
+      actorId: user.id,
+      action: 'ADMIN_REVOKE',
+      targetType: 'USER',
+      targetId: result.id,
+      summary: `Admin revogado: ${result.email}`,
+      metadata: { email: result.email },
+    });
+    return result;
   }
 
   @Get('support')
@@ -74,5 +124,18 @@ export class AdminController {
     @Body() dto: UpdateSupportTicketDto,
   ) {
     return this.adminService.updateTicket(id, user.id, dto);
+  }
+
+  @Get('audit')
+  listAudit(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('action') action?: string,
+  ) {
+    return this.auditService.list({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      action,
+    });
   }
 }

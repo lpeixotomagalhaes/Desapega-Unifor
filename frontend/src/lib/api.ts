@@ -1,11 +1,12 @@
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3002";
 
+/** Categorias de anúncio por área do desapego (não confundir com cursos). */
 export const CATEGORIES = {
-  LIVROS: "Livros",
+  LIVROS: "Livros e apostilas",
   ELETRONICOS: "Eletrônicos",
-  ENGENHARIA: "Engenharia",
-  COMPUTACAO: "Computação",
+  ENGENHARIA: "Material de engenharia",
+  COMPUTACAO: "Material de computação",
   VESTUARIO: "Vestuário",
   MOVEIS: "Móveis",
   OUTROS: "Outros",
@@ -23,10 +24,19 @@ export interface Item {
   price: string | null;
   isDonation: boolean;
   imageUrl: string;
+  imageUrls?: string[];
   status: ItemStatus;
   negotiatingWithId?: string | null;
   createdAt: string;
   user: { id: string; name: string };
+}
+
+export interface ItemComment {
+  id: string;
+  itemId: string;
+  body: string;
+  createdAt: string;
+  user: { id: string; name: string; avatarUrl: string | null };
 }
 
 export interface Stats {
@@ -51,9 +61,15 @@ export interface SessionUser {
   phone: string | null;
   avatarUrl: string | null;
   bio?: string | null;
+  course?: string | null;
+  enrollment?: string | null;
   role?: UserRole;
   onboardingCompletedAt: string | null;
 }
+
+export type AccountStatus = "ACTIVE" | "SUSPENDED" | "BANNED";
+
+export type ModerateUserAction = "BAN" | "SUSPEND" | "RESTORE";
 
 export interface AdminStats {
   users: number;
@@ -62,6 +78,8 @@ export interface AdminStats {
   negotiating: number;
   concluded: number;
   openTickets: number;
+  bannedUsers?: number;
+  suspendedUsers?: number;
   byCategory: Array<{ category: Category; count: number }>;
 }
 
@@ -71,7 +89,14 @@ export interface AdminUserRow {
   email: string;
   role: UserRole;
   phone: string | null;
+  course?: string | null;
+  enrollment?: string | null;
+  accountStatus: AccountStatus;
+  suspendedUntil: string | null;
+  moderationReason: string | null;
+  moderatedAt: string | null;
   createdAt: string;
+  _count?: { items: number; supportTickets: number };
 }
 
 export interface SupportTicket {
@@ -109,6 +134,7 @@ export interface CreateItemInput {
   price?: number;
   isDonation?: boolean;
   imageUrl: string;
+  imageUrls?: string[];
 }
 
 export interface RegisterInput {
@@ -116,6 +142,8 @@ export interface RegisterInput {
   email: string;
   password: string;
   phone: string;
+  course: string;
+  enrollment: string;
 }
 
 export interface UpdateMeInput {
@@ -123,6 +151,25 @@ export interface UpdateMeInput {
   phone?: string;
   avatarUrl?: string;
   bio?: string;
+  course?: string | null;
+  enrollment?: string | null;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  actorId: string | null;
+  action: string;
+  targetType: string | null;
+  targetId: string | null;
+  summary: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  actor?: {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+  } | null;
 }
 
 export type NotificationType =
@@ -134,7 +181,9 @@ export type NotificationType =
   | "ITEM_SAVED_UPDATE"
   | "ORDER_DELIVERED"
   | "REVIEW_REQUEST"
-  | "NEW_REVIEW";
+  | "NEW_REVIEW"
+  | "SUPPORT_REPLY"
+  | "ACCOUNT_MODERATION";
 
 export interface PendingReviewOrder {
   id: string;
@@ -177,6 +226,8 @@ export interface PublicProfile {
     phone: string | null;
     avatarUrl: string | null;
     bio: string | null;
+    course: string | null;
+    enrollment: string | null;
     createdAt: string;
   };
   online: boolean;
@@ -300,6 +351,16 @@ export const api = {
   },
 
   getItem: (id: string) => request<Item>(`/items/${id}`),
+
+  getItemComments: (id: string) =>
+    request<ItemComment[]>(`/items/${id}/comments`),
+
+  createItemComment: (token: string, id: string, body: string) =>
+    request<ItemComment>(`/items/${id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+      token,
+    }),
 
   getMyItems: (token: string) => request<Item[]>("/items/mine", { token }),
 
@@ -491,13 +552,20 @@ export const api = {
 
   getAdminUsers: (
     token: string,
-    params?: { page?: number; limit?: number; role?: UserRole; email?: string },
+    params?: {
+      page?: number;
+      limit?: number;
+      role?: UserRole;
+      email?: string;
+      accountStatus?: AccountStatus;
+    },
   ) => {
     const query = new URLSearchParams();
     if (params?.page) query.set("page", String(params.page));
     if (params?.limit) query.set("limit", String(params.limit));
     if (params?.role) query.set("role", params.role);
     if (params?.email) query.set("email", params.email);
+    if (params?.accountStatus) query.set("accountStatus", params.accountStatus);
     const qs = query.toString();
     return request<{
       total: number;
@@ -506,6 +574,33 @@ export const api = {
       users: AdminUserRow[];
     }>(`/admin/users${qs ? `?${qs}` : ""}`, { token });
   },
+
+  moderateUser: (
+    token: string,
+    userId: string,
+    data: {
+      action: ModerateUserAction;
+      reason?: string;
+      days?: number;
+      takeDownItems?: boolean;
+    },
+  ) =>
+    request<AdminUserRow>(`/admin/users/${userId}/moderate`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  takeDownItem: (
+    token: string,
+    itemId: string,
+    data?: { reason?: string },
+  ) =>
+    request<Item>(`/admin/items/${itemId}/take-down`, {
+      method: "PATCH",
+      body: JSON.stringify(data ?? {}),
+      token,
+    }),
 
   getAdminAdmins: (token: string) =>
     request<
@@ -555,6 +650,23 @@ export const api = {
       body: JSON.stringify(data),
       token,
     }),
+
+  getAdminAuditLogs: (
+    token: string,
+    params?: { page?: number; limit?: number; action?: string },
+  ) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.action) query.set("action", params.action);
+    const qs = query.toString();
+    return request<{
+      total: number;
+      page: number;
+      limit: number;
+      entries: AuditLogEntry[];
+    }>(`/admin/audit${qs ? `?${qs}` : ""}`, { token });
+  },
 };
 
 export function formatPrice(item: Item): string {
@@ -591,4 +703,12 @@ export function resolveImageUrl(imageUrl: string): string {
     return `${API_URL}${imageUrl}`;
   }
   return imageUrl;
+}
+
+/** Capa + galeria (fallback para imageUrl único). */
+export function itemGalleryUrls(item: Pick<Item, "imageUrl" | "imageUrls">): string[] {
+  if (item.imageUrls && item.imageUrls.length > 0) {
+    return item.imageUrls;
+  }
+  return item.imageUrl ? [item.imageUrl] : [];
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import { AppHeader } from "@/components/AppHeader";
+import { CompleteProfileGate } from "@/components/CompleteProfileModal";
 import { MainShell } from "@/components/MainShell";
 import { MobileTabBarGlobal } from "@/components/MobileTabBarGlobal";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
@@ -26,6 +27,14 @@ export const metadata: Metadata = {
   description:
     "Marketplace universitário de desapego: doe, venda e encontre livros, eletrônicos, jalecos e muito mais dentro do campus.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: "/brand/unifor-mark-blue.png", type: "image/png" },
+    ],
+    apple: [{ url: "/brand/unifor-mark-blue.png" }],
+    shortcut: ["/favicon.png"],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -55,6 +64,7 @@ export default function RootLayout({
               <AppHeader />
               <MainShell>{children}</MainShell>
               <MobileTabBarGlobal />
+              <CompleteProfileGate />
             </PendingReviewsProvider>
           </SavedItemsProvider>
         </AuthProvider>

@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { CourseSelect } from "@/components/CourseSelect";
 import { ProfileAvatar } from "@/components/ProfileDrawer";
 import { api, ApiError } from "@/lib/api";
 import { useAuth, useAuthRedirect } from "@/lib/auth";
 import { formatBrazilianPhoneInput, isValidBrazilianPhone } from "@/lib/phone";
+import { getCourseAreaLabel, isUniforCourse } from "@/lib/unifor-courses";
 
 const inputClass =
   "w-full rounded-xl border border-fog bg-white px-4 py-3 text-sm outline-none transition-soft focus:border-brand focus:ring-2 focus:ring-brand/20";
@@ -16,6 +18,8 @@ function ContaInner() {
   const { user, token, ready } = useAuthRedirect();
   const { refreshUser, signOut } = useAuth();
   const [name, setName] = useState("");
+  const [enrollment, setEnrollment] = useState("");
+  const [course, setCourse] = useState("");
   const [phone, setPhone] = useState("");
   const [bio, setBio] = useState("");
   const [saving, setSaving] = useState(false);
@@ -25,11 +29,15 @@ function ContaInner() {
   useEffect(() => {
     if (!user) return;
     setName(user.name);
+    setEnrollment(user.enrollment ?? "");
+    setCourse(user.course && isUniforCourse(user.course) ? user.course : "");
     setPhone(user.phone ?? "");
     setBio(user.bio ?? "");
   }, [user]);
 
   if (!ready || !user || !token) return null;
+
+  const courseArea = course ? getCourseAreaLabel(course) : null;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +46,14 @@ function ContaInner() {
 
     if (name.trim().length < 2) {
       setError("Informe um nome com pelo menos 2 caracteres.");
+      return;
+    }
+    if (!course || !isUniforCourse(course)) {
+      setError("Selecione seu curso da UNIFOR.");
+      return;
+    }
+    if (enrollment.trim().length < 3) {
+      setError("Informe uma matrícula válida.");
       return;
     }
     if (phone && !isValidBrazilianPhone(phone)) {
@@ -49,6 +65,8 @@ function ContaInner() {
     try {
       await api.updateMe(token, {
         name: name.trim(),
+        course: course.trim(),
+        enrollment: enrollment.trim(),
         bio: bio.trim(),
         ...(phone ? { phone } : {}),
       });
@@ -105,12 +123,31 @@ function ContaInner() {
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-          E-mail
+          Matrícula
           <input
-            disabled
-            value={user.email}
-            className={`${inputClass} cursor-not-allowed bg-mist text-muted`}
+            required
+            minLength={3}
+            maxLength={40}
+            value={enrollment}
+            onChange={(e) => setEnrollment(e.target.value)}
+            placeholder="Ex.: 2212345"
+            className={inputClass}
           />
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+          Curso
+          <CourseSelect
+            required
+            value={course}
+            onChange={setCourse}
+            className={inputClass}
+          />
+          {courseArea && (
+            <span className="text-xs font-normal text-muted">
+              Área: {courseArea}
+            </span>
+          )}
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
@@ -126,13 +163,22 @@ function ContaInner() {
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+          E-mail
+          <input
+            disabled
+            value={user.email}
+            className={`${inputClass} cursor-not-allowed bg-mist text-muted`}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
           Bio pública
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             maxLength={280}
             rows={3}
-            placeholder="Conte um pouco sobre você (curso, campus…)"
+            placeholder="Conte um pouco sobre você…"
             className={inputClass}
           />
           <span className="text-xs font-normal text-muted">

@@ -14,6 +14,9 @@ const MIGRATIONS = [
   '20260802223000_item_categories_array',
   '20260802230000_user_last_seen',
   '20260802234500_notifications_and_saved_items',
+  '20260803010000_item_images_and_comments',
+  '20260803020000_support_ticket_account_moderation',
+  '20260803030000_user_course_enrollment_audit',
 ];
 
 function run(cmd, { inherit = true } = {}) {

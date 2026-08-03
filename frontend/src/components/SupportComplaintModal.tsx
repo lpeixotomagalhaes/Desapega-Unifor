@@ -1,8 +1,20 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { api, ApiError } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type SupportTicket,
+  type SupportTicketStatus,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+
+const STATUS_LABEL: Record<SupportTicketStatus, string> = {
+  OPEN: "Aberto",
+  IN_PROGRESS: "Em andamento",
+  RESOLVED: "Resolvido",
+  CLOSED: "Fechado",
+};
 
 export function SupportComplaintModal({
   open,
@@ -17,6 +29,9 @@ export function SupportComplaintModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [tab, setTab] = useState<"new" | "mine">("new");
+  const [mine, setMine] = useState<SupportTicket[]>([]);
+  const [loadingMine, setLoadingMine] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -24,7 +39,28 @@ export function SupportComplaintModal({
     setMessage("");
     setError(null);
     setSuccess(false);
+    setTab("new");
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !token || tab !== "mine") return;
+    let cancelled = false;
+    setLoadingMine(true);
+    api
+      .getMySupportTickets(token)
+      .then((data) => {
+        if (!cancelled) setMine(data);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Não foi possível carregar suas reclamações.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMine(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, token, tab, success]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,10 +114,10 @@ export function SupportComplaintModal({
               id="support-modal-title"
               className="font-display text-lg font-semibold text-navy"
             >
-              Abrir reclamação
+              Suporte
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Conte o que aconteceu. Nossa equipe responde pelo painel.
+              Abra uma reclamação ou veja respostas da equipe.
             </p>
           </div>
           <button
@@ -94,17 +130,77 @@ export function SupportComplaintModal({
           </button>
         </div>
 
-        {success ? (
+        <div className="mb-4 flex gap-1 rounded-lg bg-mist p-1">
+          <button
+            type="button"
+            onClick={() => setTab("new")}
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium ${
+              tab === "new" ? "bg-white text-navy shadow-sm" : "text-muted"
+            }`}
+          >
+            Nova
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("mine")}
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium ${
+              tab === "mine" ? "bg-white text-navy shadow-sm" : "text-muted"
+            }`}
+          >
+            Minhas
+          </button>
+        </div>
+
+        {tab === "mine" ? (
+          <div className="max-h-80 space-y-3 overflow-y-auto">
+            {loadingMine ? (
+              <p className="text-sm text-muted">Carregando…</p>
+            ) : mine.length === 0 ? (
+              <p className="text-sm text-muted">
+                Você ainda não enviou reclamações.
+              </p>
+            ) : (
+              mine.map((t) => (
+                <article
+                  key={t.id}
+                  className="rounded-xl border border-fog px-3 py-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-navy">
+                      {t.subject}
+                    </h3>
+                    <span className="shrink-0 text-[11px] font-medium text-muted">
+                      {STATUS_LABEL[t.status]}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">{t.message}</p>
+                  {t.adminReply && (
+                    <p className="mt-2 rounded-lg bg-mist px-2.5 py-2 text-sm text-navy">
+                      <span className="font-semibold">Resposta: </span>
+                      {t.adminReply}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[11px] text-muted">
+                    {new Date(t.createdAt).toLocaleString("pt-BR")}
+                  </p>
+                </article>
+              ))
+            )}
+          </div>
+        ) : success ? (
           <div className="space-y-4">
             <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
               Reclamação enviada. Obrigado pelo contato!
             </p>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                setSuccess(false);
+                setTab("mine");
+              }}
               className="w-full rounded-lg bg-navy py-2.5 text-sm font-semibold text-white hover:bg-brand"
             >
-              Fechar
+              Ver minhas reclamações
             </button>
           </div>
         ) : (

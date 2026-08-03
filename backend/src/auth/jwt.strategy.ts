@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { UserRole } from '../generated/prisma/enums';
 import { PrismaService } from '../prisma/prisma.service';
 import type { JwtPayload } from './auth.service';
+import {
+  assertAccountAllowed,
+  isSuspensionExpired,
+} from './account-access.util';
 
 export interface AuthenticatedUser {
   id: string;
@@ -29,13 +33,48 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): AuthenticatedUser {
-    void this.touchLastSeen(payload.sub);
+  async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        accountStatus: true,
+        suspendedUntil: true,
+        moderationReason: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Usuário não encontrado.');
+    }
+
+    if (isSuspensionExpired(user)) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          accountStatus: 'ACTIVE',
+          suspendedUntil: null,
+          moderationReason: null,
+          moderatedAt: null,
+          moderatedById: null,
+        },
+      });
+      user.accountStatus = 'ACTIVE';
+      user.suspendedUntil = null;
+      user.moderationReason = null;
+    }
+
+    assertAccountAllowed(user);
+    void this.touchLastSeen(user.id);
+
     return {
-      id: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      role: payload.role ?? 'USER',
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
     };
   }
 

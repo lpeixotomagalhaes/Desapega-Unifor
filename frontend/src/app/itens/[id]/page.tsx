@@ -4,25 +4,26 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CampusDeliveryTip } from "@/components/CampusDeliveryTip";
 import { InterestOrderForm } from "@/components/InterestOrderForm";
+import { ItemComments } from "@/components/ItemComments";
 import {
   api,
   CATEGORIES,
   formatCategories,
   formatPrice,
+  itemGalleryUrls,
   itemStatusLabel,
   resolveImageUrl,
   type Item,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { CAMPUS_DELIVERY_SUPPORT_FAQ } from "@/lib/campusDelivery";
 
 export default function ItemDetailPage() {
   const params = useParams<{ id: string }>();
   const { user } = useAuth();
   const [item, setItem] = useState<Item | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [activeImage, setActiveImage] = useState(0);
 
   const id = params.id;
 
@@ -30,6 +31,7 @@ export default function ItemDetailPage() {
     let cancelled = false;
     setItem(null);
     setNotFound(false);
+    setActiveImage(0);
     api
       .getItem(id)
       .then((data) => {
@@ -78,6 +80,8 @@ export default function ItemDetailPage() {
 
   const isConcluded = item.status === "CONCLUIDO";
   const statusLabel = itemStatusLabel(item);
+  const gallery = itemGalleryUrls(item);
+  const currentSrc = gallery[Math.min(activeImage, gallery.length - 1)] ?? item.imageUrl;
 
   return (
     <div className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 md:py-8">
@@ -89,26 +93,53 @@ export default function ItemDetailPage() {
       </Link>
 
       <div className="grid gap-8 md:grid-cols-2">
-        <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-mist sm:h-96">
-          <Image
-            src={resolveImageUrl(item.imageUrl)}
-            alt={item.title}
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            className={`object-cover ${isConcluded ? "grayscale-[35%]" : ""}`}
-            priority
-          />
-          <span className="absolute left-4 top-4 max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
-            {formatCategories(item.categories)}
-          </span>
-          {statusLabel && (
-            <span
-              className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
-                isConcluded ? "bg-navy/80" : "bg-amber-500"
-              }`}
-            >
-              {statusLabel}
+        <div>
+          <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-mist sm:h-96">
+            <Image
+              src={resolveImageUrl(currentSrc)}
+              alt={item.title}
+              fill
+              sizes="(max-width: 768px) 100vw, 50vw"
+              className={`object-cover ${isConcluded ? "grayscale-[35%]" : ""}`}
+              priority
+            />
+            <span className="absolute left-4 top-4 max-w-[70%] truncate rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-navy shadow-sm backdrop-blur">
+              {formatCategories(item.categories)}
             </span>
+            {statusLabel && (
+              <span
+                className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
+                  isConcluded ? "bg-navy/80" : "bg-amber-500"
+                }`}
+              >
+                {statusLabel}
+              </span>
+            )}
+          </div>
+          {gallery.length > 1 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {gallery.map((url, i) => (
+                <button
+                  key={`${url}-${i}`}
+                  type="button"
+                  onClick={() => setActiveImage(i)}
+                  className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-soft ${
+                    i === activeImage
+                      ? "border-brand"
+                      : "border-transparent opacity-80 hover:opacity-100"
+                  }`}
+                  aria-label={`Ver foto ${i + 1}`}
+                >
+                  <Image
+                    src={resolveImageUrl(url)}
+                    alt=""
+                    fill
+                    sizes="64px"
+                    className="object-cover"
+                  />
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
@@ -151,32 +182,13 @@ export default function ItemDetailPage() {
               {item.description}
             </p>
           </div>
+        </div>
+      </div>
 
-          <CampusDeliveryTip variant="form" />
-
+      <div className="mt-8 grid items-start gap-6 lg:grid-cols-2">
+        <ItemComments itemId={item.id} />
+        <div className="min-w-0">
           <InterestOrderForm item={item} />
-
-          <details className="group rounded-xl border border-fog bg-white px-4 py-3">
-            <summary className="cursor-pointer list-none text-sm font-semibold text-navy marker:content-none">
-              <span className="inline-flex items-center gap-1.5">
-                Dicas de segurança para o encontro
-                <span
-                  className="text-muted transition-soft group-open:rotate-180"
-                  aria-hidden
-                >
-                  ▾
-                </span>
-              </span>
-            </summary>
-            <ul className="mt-3 space-y-2.5 border-t border-fog pt-3">
-              {CAMPUS_DELIVERY_SUPPORT_FAQ.map((tip) => (
-                <li key={tip.title}>
-                  <p className="text-sm font-medium text-navy">{tip.title}</p>
-                  <p className="text-xs text-muted">{tip.body}</p>
-                </li>
-              ))}
-            </ul>
-          </details>
         </div>
       </div>
     </div>

@@ -40,7 +40,7 @@ const MENU_ITEMS = [
   {
     href: "/conta",
     label: "Minha conta",
-    description: "Nome, e-mail, WhatsApp e bio",
+    description: "Nome, matrícula, curso, WhatsApp e bio",
     icon: "user",
   },
 ] as const;

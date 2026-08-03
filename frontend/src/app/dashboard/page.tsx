@@ -45,6 +45,8 @@ export default function DashboardOverviewPage() {
     { label: "Negociando", value: stats.negotiating },
     { label: "Concluídos", value: stats.concluded },
     { label: "Tickets abertos", value: stats.openTickets },
+    { label: "Contas suspensas", value: stats.suspendedUsers ?? 0 },
+    { label: "Contas banidas", value: stats.bannedUsers ?? 0 },
   ];
 
   const maxCat = Math.max(1, ...stats.byCategory.map((c) => c.count));

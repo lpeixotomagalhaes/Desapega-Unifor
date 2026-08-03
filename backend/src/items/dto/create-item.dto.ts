@@ -47,10 +47,22 @@ export class CreateItemDto {
   @IsBoolean({ message: 'isDonation deve ser true ou false.' })
   isDonation?: boolean;
 
-  /** Aceita upload local (`/uploads/...`) ou URL remota (seed/demo). */
+  /** Capa / primeira foto. Aceita upload local (`/uploads/...`) ou URL remota. */
   @IsString()
   @Matches(/^(https?:\/\/.+|\/uploads\/.+)$/i, {
     message: 'Envie uma imagem válida (upload ou URL).',
   })
   imageUrl: string;
+
+  /** Fotos adicionais (inclui a capa como primeiro item no front). */
+  @IsOptional()
+  @IsArray({ message: 'imageUrls deve ser uma lista.' })
+  @ArrayMinSize(1, { message: 'Envie pelo menos uma foto.' })
+  @ArrayUnique({ message: 'URLs de imagem duplicadas não são permitidas.' })
+  @IsString({ each: true })
+  @Matches(/^(https?:\/\/.+|\/uploads\/.+)$/i, {
+    each: true,
+    message: 'Cada imagem deve ser um upload ou URL válida.',
+  })
+  imageUrls?: string[];
 }

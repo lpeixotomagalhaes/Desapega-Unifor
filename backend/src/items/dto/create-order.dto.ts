@@ -9,11 +9,11 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { IsUniforCourse } from '../../common/validators/is-unifor-course.validator';
 
 export class CreateOrderDto {
   @IsString()
-  @MinLength(2, { message: 'Informe seu curso.' })
-  @MaxLength(120, { message: 'Curso deve ter no máximo 120 caracteres.' })
+  @IsUniforCourse()
   course: string;
 
   @IsString()

@@ -5,18 +5,22 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { CourseSelect } from "@/components/CourseSelect";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 import { PasswordChecklist } from "@/components/PasswordChecklist";
 import { api, ApiError, type AuthResponse } from "@/lib/api";
 import { postAuthDestination, useAuth } from "@/lib/auth";
 import { formatBrazilianPhoneInput, isValidBrazilianPhone } from "@/lib/phone";
 import { isPasswordValid } from "@/lib/passwordRules";
+import { getCourseAreaLabel, isUniforCourse } from "@/lib/unifor-courses";
 
 const inputClass =
   "w-full rounded-lg border border-[#c5d5e8] bg-white px-3.5 py-2.5 text-sm text-navy outline-none transition-soft placeholder:text-muted/70 focus:border-brand focus:ring-2 focus:ring-brand/20";
 const inputErrorClass = "border-red-300 focus:border-red-400 focus:ring-red-100";
 
-type FieldErrors = Partial<Record<"name" | "email" | "password" | "phone", string>>;
+type FieldErrors = Partial<
+  Record<"name" | "email" | "password" | "phone" | "course" | "enrollment", string>
+>;
 
 function WaitingLabel() {
   const [dots, setDots] = useState(1);
@@ -41,7 +45,14 @@ function WaitingLabel() {
 export function AuthForm({ mode }: { mode: "login" | "registro" }) {
   const searchParams = useSearchParams();
   const { user, token, loading, signIn } = useAuth();
-  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+    course: "",
+    enrollment: "",
+  });
   const [submitting, setSubmitting] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
@@ -55,6 +66,7 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
   const authLinkQs = returnUrlParam
     ? `?returnUrl=${encodeURIComponent(postAuthDestination(returnUrlParam))}`
     : "";
+  const courseArea = form.course ? getCourseAreaLabel(form.course) : null;
 
   useEffect(() => {
     if (loading || !user || !token) return;
@@ -104,12 +116,18 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
       if (form.name.trim().length < 2) {
         errs.name = "Informe seu nome completo.";
       }
-      if (!isPasswordValid(form.password)) {
-        errs.password =
-          "A senha precisa ter 8+ caracteres, com letra, número e caractere especial.";
+      if (form.enrollment.trim().length < 3) {
+        errs.enrollment = "Informe uma matrícula válida.";
+      }
+      if (!form.course || !isUniforCourse(form.course)) {
+        errs.course = "Selecione seu curso da UNIFOR.";
       }
       if (!isValidBrazilianPhone(form.phone)) {
         errs.phone = "Informe um WhatsApp válido, com DDD.";
+      }
+      if (!isPasswordValid(form.password)) {
+        errs.password =
+          "A senha precisa ter 8+ caracteres, com letra, número e caractere especial.";
       }
       if (Object.keys(errs).length > 0 || fieldErrors.email) {
         setFieldErrors((prev) => ({ ...prev, ...errs }));
@@ -121,7 +139,14 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
     try {
       const auth = isLogin
         ? await api.login({ email: form.email, password: form.password })
-        : await api.register(form);
+        : await api.register({
+            name: form.name.trim(),
+            email: form.email.trim(),
+            password: form.password,
+            phone: form.phone,
+            course: form.course.trim(),
+            enrollment: form.enrollment.trim(),
+          });
       handleAuthSuccess(auth);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -137,7 +162,6 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
 
   return (
     <div className="relative flex min-h-[calc(100dvh-4.75rem)] flex-1 overflow-hidden bg-[#d5e6f6] lg:min-h-[calc(100dvh-5.25rem)]">
-      {/* Esquerda: campus + overlay azul (SSO Unifor) */}
       <div className="auth-bg-fade absolute inset-0 lg:right-[38%]">
         <Image
           src="/auth/campus-photo.jpg"
@@ -150,13 +174,12 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
         <div className="absolute inset-0 bg-[rgb(0_74_247_/0.3)]" />
       </div>
 
-      {/* Direita: painel claro com formas (desktop) */}
       <div className="auth-panel absolute inset-y-0 right-0 hidden w-[38%] lg:block" />
 
       <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 items-center justify-center px-4 py-10 sm:px-6 lg:justify-end lg:pr-[4%] xl:pr-[6%]">
         <form
           onSubmit={handleSubmit}
-          className="animate-fade-up delay-1 flex w-full max-w-[26rem] flex-col gap-4 rounded-2xl border border-white/15 bg-white p-6 shadow-2xl sm:p-8"
+          className="animate-fade-up delay-1 flex max-h-[min(92dvh,880px)] w-full max-w-[26rem] flex-col gap-4 overflow-y-auto rounded-2xl border border-white/15 bg-white p-6 shadow-2xl sm:p-8"
         >
           <div className="animate-fade-up flex flex-col items-center gap-3 text-center">
             <BrandLogo mark="blue" height={40} priority />
@@ -167,13 +190,18 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
               <p className="mt-1 text-sm text-muted">
                 {isLogin
                   ? "Entre e desapegue no campus em um só lugar"
-                  : "Cadastre-se e comece a anunciar no Desapega UNIFOR"}
+                  : "Cadastre-se com seus dados acadêmicos da UNIFOR"}
               </p>
             </div>
           </div>
 
           <div className="animate-fade-up delay-2">
             <GoogleSignInButton onError={setGeneralError} />
+            {!isLogin && (
+              <p className="mt-2 text-center text-[11px] text-muted">
+                Com Google, pedimos matrícula, curso e WhatsApp em seguida.
+              </p>
+            )}
           </div>
 
           <div className="animate-fade-up delay-2 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -184,24 +212,68 @@ export function AuthForm({ mode }: { mode: "login" | "registro" }) {
 
           <div className="animate-fade-up delay-3 flex flex-col gap-3.5">
             {!isLogin && (
-              <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-                Nome
-                <input
-                  required
-                  minLength={2}
-                  maxLength={80}
-                  value={form.name}
-                  onChange={(e) => {
-                    setForm({ ...form, name: e.target.value });
-                    clearFieldError("name");
-                  }}
-                  placeholder="Seu nome"
-                  className={`${inputClass} ${fieldErrors.name ? inputErrorClass : ""}`}
-                />
-                {fieldErrors.name && (
-                  <span className="text-xs text-red-600">{fieldErrors.name}</span>
-                )}
-              </label>
+              <>
+                <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+                  Nome
+                  <input
+                    required
+                    minLength={2}
+                    maxLength={80}
+                    value={form.name}
+                    onChange={(e) => {
+                      setForm({ ...form, name: e.target.value });
+                      clearFieldError("name");
+                    }}
+                    placeholder="Seu nome completo"
+                    className={`${inputClass} ${fieldErrors.name ? inputErrorClass : ""}`}
+                  />
+                  {fieldErrors.name && (
+                    <span className="text-xs text-red-600">{fieldErrors.name}</span>
+                  )}
+                </label>
+
+                <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+                  Matrícula
+                  <input
+                    required
+                    minLength={3}
+                    maxLength={40}
+                    value={form.enrollment}
+                    onChange={(e) => {
+                      setForm({ ...form, enrollment: e.target.value });
+                      clearFieldError("enrollment");
+                    }}
+                    placeholder="Ex.: 2212345"
+                    className={`${inputClass} ${fieldErrors.enrollment ? inputErrorClass : ""}`}
+                  />
+                  {fieldErrors.enrollment && (
+                    <span className="text-xs text-red-600">
+                      {fieldErrors.enrollment}
+                    </span>
+                  )}
+                </label>
+
+                <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
+                  Curso
+                  <CourseSelect
+                    required
+                    value={form.course}
+                    onChange={(course) => {
+                      setForm({ ...form, course });
+                      clearFieldError("course");
+                    }}
+                    className={`${inputClass} ${fieldErrors.course ? inputErrorClass : ""}`}
+                  />
+                  {courseArea && (
+                    <span className="text-xs font-normal text-muted">
+                      Área: {courseArea}
+                    </span>
+                  )}
+                  {fieldErrors.course && (
+                    <span className="text-xs text-red-600">{fieldErrors.course}</span>
+                  )}
+                </label>
+              </>
             )}
 
             <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">

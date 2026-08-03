@@ -18,6 +18,8 @@ export class UsersService {
         phone: true,
         avatarUrl: true,
         bio: true,
+        course: true,
+        enrollment: true,
         lastSeenAt: true,
         createdAt: true,
       },

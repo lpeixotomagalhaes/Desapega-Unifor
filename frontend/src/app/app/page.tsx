@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { CampusDeliveryTip } from "@/components/CampusDeliveryTip";
+import { ImageDropzone, type ImageDraft } from "@/components/ImageDropzone";
 import { ItemCard, ItemCardSkeleton } from "@/components/ItemCard";
 import { ItemStatusTabs } from "@/components/ItemStatusTabs";
 import { OnboardingTour } from "@/components/OnboardingTour";
@@ -195,47 +196,25 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
     price: "",
     isDonation: false,
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [images, setImages] = useState<ImageDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (ready && user && !user.phone) {
+    if (
+      ready &&
+      user &&
+      (!user.phone || !user.course || !user.enrollment)
+    ) {
       router.push(
         `/completar-perfil?returnUrl=${encodeURIComponent("/app?tab=anunciar")}`,
       );
     }
   }, [ready, user, router]);
 
-  useEffect(() => {
-    return () => {
-      if (imagePreview) URL.revokeObjectURL(imagePreview);
-    };
-  }, [imagePreview]);
-
-  if (!ready || !token || !user?.phone) return null;
-
-  const handleImageChange = (file: File | null) => {
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    if (!file) {
-      setImageFile(null);
-      setImagePreview(null);
-      return;
-    }
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowed.includes(file.type)) {
-      setError("Envie uma imagem JPG, PNG, WEBP ou GIF.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("A imagem deve ter no máximo 5 MB.");
-      return;
-    }
-    setError(null);
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-  };
+  if (!ready || !token || !user?.phone || !user.course || !user.enrollment) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,20 +228,25 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
       setError("Informe um preço ou marque como doação.");
       return;
     }
-    if (!imageFile) {
-      setError("Selecione uma foto do item.");
+    if (images.length === 0) {
+      setError("Adicione pelo menos uma foto do item.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const { url } = await api.uploadImage(token, imageFile);
+      const urls: string[] = [];
+      for (const draft of images) {
+        const { url } = await api.uploadImage(token, draft.file);
+        urls.push(url);
+      }
       const payload: CreateItemInput = {
         title: form.title,
         description: form.description,
         categories: form.categories,
         isDonation: form.isDonation,
-        imageUrl: url,
+        imageUrl: urls[0],
+        imageUrls: urls,
         ...(form.isDonation ? {} : { price: Number(form.price) }),
       };
       await api.createItem(token, payload);
@@ -369,38 +353,11 @@ function NewItemTab({ onCreated }: { onCreated: () => void }) {
         </label>
       )}
 
-      <div className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
-        Foto do item
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-fog bg-white px-4 py-6 text-center transition-soft hover:border-brand hover:bg-mist/40">
-          <input
-            required
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className="sr-only"
-            onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
-          />
-          {imagePreview ? (
-            <img
-              src={imagePreview}
-              alt="Pré-visualização"
-              className="max-h-48 w-full rounded-lg object-cover"
-            />
-          ) : (
-            <>
-              <span className="text-2xl" aria-hidden>
-                📷
-              </span>
-              <span className="text-sm font-semibold text-navy">
-                Toque para escolher uma foto
-              </span>
-            </>
-          )}
-          <span className="text-xs font-normal text-muted">
-            JPG, PNG, WEBP ou GIF · máx. 5 MB
-            {imageFile ? ` · ${imageFile.name}` : ""}
-          </span>
-        </label>
-      </div>
+      <ImageDropzone
+        images={images}
+        onChange={setImages}
+        onError={setError}
+      />
 
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

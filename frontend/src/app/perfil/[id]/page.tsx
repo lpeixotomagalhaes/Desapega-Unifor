@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { formatBrazilianPhoneDisplay } from "@/lib/phone";
+import { getCourseAreaLabel } from "@/lib/unifor-courses";
 
 function ProfileAvatarLarge({
   name,
@@ -167,6 +168,7 @@ export default function PublicProfilePage() {
     completedDeals,
   } = profile;
   const isOwn = me?.id === user.id;
+  const courseAreaLabel = user.course ? getCourseAreaLabel(user.course) : null;
   const memberSince = new Date(user.createdAt).toLocaleDateString("pt-BR", {
     month: "long",
     year: "numeric",
@@ -248,10 +250,47 @@ export default function PublicProfilePage() {
             </div>
             <div>
               <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-                E-mail
+                Matrícula
               </dt>
-              <dd className="mt-0.5 break-all text-sm font-medium text-navy">
-                {user.email}
+              <dd className="mt-0.5 text-sm font-medium text-navy">
+                {user.enrollment || (
+                  <span className="text-muted">
+                    {isOwn ? (
+                      <Link href="/conta" className="text-brand hover:underline">
+                        Informar na conta
+                      </Link>
+                    ) : (
+                      "Não informada"
+                    )}
+                  </span>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Curso
+              </dt>
+              <dd className="mt-0.5 text-sm font-medium text-navy">
+                {user.course ? (
+                  <>
+                    {user.course}
+                    {courseAreaLabel ? (
+                      <span className="mt-0.5 block text-xs font-normal text-muted">
+                        {courseAreaLabel}
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="text-muted">
+                    {isOwn ? (
+                      <Link href="/conta" className="text-brand hover:underline">
+                        Selecionar na conta
+                      </Link>
+                    ) : (
+                      "Não informado"
+                    )}
+                  </span>
+                )}
               </dd>
             </div>
             <div>
@@ -271,6 +310,14 @@ export default function PublicProfilePage() {
                 ) : (
                   <span className="text-muted">Não informado</span>
                 )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
+                E-mail
+              </dt>
+              <dd className="mt-0.5 break-all text-sm font-medium text-navy">
+                {user.email}
               </dd>
             </div>
             {user.bio ? (

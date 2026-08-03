@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { CourseSelect } from "@/components/CourseSelect";
 import {
   api,
   ApiError,
@@ -9,6 +10,7 @@ import {
   type Item,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { isUniforCourse } from "@/lib/unifor-courses";
 
 const CAMPUS_BLOCKS = [
   "Bloco A",
@@ -39,7 +41,7 @@ const inputClass =
 
 export function InterestOrderForm({ item }: { item: Item }) {
   const router = useRouter();
-  const { user, token, loading: authLoading } = useAuth();
+  const { user, token, loading: authLoading, refreshUser } = useAuth();
   const isOwner = user?.id === item.user.id;
   const isConcluded = item.status === "CONCLUIDO";
   const isDonation = item.isDonation;
@@ -61,6 +63,17 @@ export function InterestOrderForm({ item }: { item: Item }) {
     customBlock: "",
   });
 
+  useEffect(() => {
+    if (!user) return;
+    setForm((prev) => ({
+      ...prev,
+      course:
+        prev.course ||
+        (user.course && isUniforCourse(user.course) ? user.course : ""),
+      enrollment: prev.enrollment || user.enrollment || "",
+    }));
+  }, [user]);
+
   const visualStep = useMemo(() => {
     if (isDonation) return step === 1 ? 1 : 2;
     return step;
@@ -72,7 +85,7 @@ export function InterestOrderForm({ item }: { item: Item }) {
       router.push(`/login?returnUrl=${encodeURIComponent(returnUrl)}`);
       return false;
     }
-    if (!user.phone) {
+    if (!user.phone || !user.course || !user.enrollment) {
       router.push(
         `/completar-perfil?returnUrl=${encodeURIComponent(returnUrl)}`,
       );
@@ -87,8 +100,8 @@ export function InterestOrderForm({ item }: { item: Item }) {
 
   const avancarEtapa1 = () => {
     if (!ensureAuth()) return;
-    if (!form.course.trim()) {
-      setErro("Preencha seu curso.");
+    if (!form.course.trim() || !isUniforCourse(form.course)) {
+      setErro("Selecione seu curso da UNIFOR.");
       return;
     }
     if (form.enrollment.trim().length < 3) {
@@ -152,6 +165,21 @@ export function InterestOrderForm({ item }: { item: Item }) {
         item.id,
         payload,
       );
+      if (
+        user &&
+        (user.course !== payload.course ||
+          user.enrollment !== payload.enrollment)
+      ) {
+        try {
+          await api.updateMe(token, {
+            course: payload.course,
+            enrollment: payload.enrollment,
+          });
+          await refreshUser();
+        } catch {
+          // pedido já foi criado; sync do perfil é best-effort
+        }
+      }
       setWhatsappUrl(url);
       setEnviado(true);
       window.open(url, "_blank", "noopener,noreferrer");
@@ -258,17 +286,16 @@ export function InterestOrderForm({ item }: { item: Item }) {
           </p>
           <input
             className={inputClass}
-            placeholder="Curso"
-            value={form.course}
-            onChange={(e) => setField("course", e.target.value)}
-            disabled={authLoading}
-          />
-          <input
-            className={inputClass}
             placeholder="Matrícula"
             value={form.enrollment}
             onChange={(e) => setField("enrollment", e.target.value)}
             disabled={authLoading}
+          />
+          <CourseSelect
+            value={form.course}
+            onChange={(course) => setField("course", course)}
+            disabled={authLoading}
+            className={inputClass}
           />
           <div className="flex justify-end pt-2">
             <button

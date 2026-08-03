@@ -9,6 +9,7 @@ import { buildWhatsAppUrl } from '../common/phone.util';
 import type { Prisma } from '../generated/prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateCommentDto } from './dto/create-comment.dto';
 import { CreateItemDto } from './dto/create-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryItemsDto } from './dto/query-items.dto';
@@ -38,6 +39,7 @@ export class ItemsService {
   async findAll(query: QueryItemsDto) {
     const where: Prisma.ItemWhereInput = {
       status: { in: ['ATIVO', 'NEGOCIANDO'] },
+      user: { accountStatus: 'ACTIVE' },
     };
 
     if (query.category) {
@@ -95,6 +97,12 @@ export class ItemsService {
       );
     }
 
+    const imageUrls =
+      dto.imageUrls && dto.imageUrls.length > 0
+        ? dto.imageUrls
+        : [dto.imageUrl];
+    const imageUrl = imageUrls[0] ?? dto.imageUrl;
+
     const item = await this.prisma.item.create({
       data: {
         title: dto.title,
@@ -103,7 +111,8 @@ export class ItemsService {
         // Item doado não tem preço, mesmo que um valor tenha sido enviado
         price: isDonation ? null : dto.price,
         isDonation,
-        imageUrl: dto.imageUrl,
+        imageUrl,
+        imageUrls,
         userId,
       },
       ...itemWithOwner,
@@ -530,6 +539,55 @@ export class ItemsService {
         : 'Um anúncio que você salvou foi vendido e não está mais disponível.',
       itemId,
     );
+  }
+
+  async listComments(itemId: string) {
+    const item = await this.prisma.item.findUnique({ where: { id: itemId } });
+    if (!item) {
+      throw new NotFoundException('Anúncio não encontrado.');
+    }
+    return this.prisma.itemComment.findMany({
+      where: { itemId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        user: {
+          select: { id: true, name: true, avatarUrl: true },
+        },
+      },
+    });
+  }
+
+  async createComment(userId: string, itemId: string, dto: CreateCommentDto) {
+    const item = await this.prisma.item.findUnique({ where: { id: itemId } });
+    if (!item) {
+      throw new NotFoundException('Anúncio não encontrado.');
+    }
+
+    const comment = await this.prisma.itemComment.create({
+      data: {
+        itemId,
+        userId,
+        body: dto.body.trim(),
+      },
+      include: {
+        user: {
+          select: { id: true, name: true, avatarUrl: true },
+        },
+      },
+    });
+
+    if (item.userId !== userId) {
+      const asker = comment.user.name;
+      await this.notifications.create(
+        item.userId,
+        'NEW_INTEREST',
+        'Nova dúvida no seu anúncio',
+        `${asker} comentou em "${item.title}": ${comment.body.slice(0, 80)}${comment.body.length > 80 ? '…' : ''}`,
+        itemId,
+      );
+    }
+
+    return comment;
   }
 
   async remove(userId: string, id: string) {
