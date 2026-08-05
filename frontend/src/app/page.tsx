@@ -57,11 +57,20 @@ export default function LandingPage() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     setItems(null);
+    setError(false);
     api
       .getItems(category ? { category } : undefined)
-      .then((data) => setItems(data.slice(0, 8)))
-      .catch(() => setError(true));
+      .then((data) => {
+        if (!cancelled) setItems(data.slice(0, 8));
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [category]);
 
   return (
@@ -203,10 +212,10 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <div className="footer-blend" aria-hidden />
+        <div className="footer-blend max-md:hidden" aria-hidden />
       </main>
 
-      <SiteFooter />
+      <SiteFooter className="max-md:hidden" />
     </div>
   );
 }

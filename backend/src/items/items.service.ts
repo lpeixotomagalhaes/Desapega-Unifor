@@ -11,7 +11,7 @@ import {
 } from '../auth/account-access.util';
 import { buildWhatsAppUrl } from '../common/phone.util';
 import { normalizeMeetupDay } from '../common/meetup-day.util';
-import type { Prisma } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -169,6 +169,24 @@ export class ItemsService {
       ...itemWithOwner,
     });
 
+    // Se o vendedor sair manualmente de NEGOCIANDO (ex.: voltou o anúncio a
+    // ATIVO), o pedido correspondente não pode ficar "preso" em NEGOCIANDO —
+    // volta para PENDENTE para refletir que a negociação não avançou.
+    if (
+      previousStatus === 'NEGOCIANDO' &&
+      dto.status !== 'NEGOCIANDO' &&
+      item.negotiatingWithId
+    ) {
+      await this.prisma.itemInterest.updateMany({
+        where: {
+          itemId: id,
+          buyerId: item.negotiatingWithId,
+          status: 'NEGOCIANDO',
+        },
+        data: { status: 'PENDENTE' },
+      });
+    }
+
     if (dto.status !== previousStatus) {
       const interestedBuyers = await this.prisma.itemInterest.findMany({
         where: { itemId: id, buyerId: { not: userId } },
@@ -273,21 +291,57 @@ export class ItemsService {
 
     const buyer = buyerAccount;
 
-    let order;
-    if (existing) {
-      if (existing.status === 'ENTREGUE') {
+    const assertResubmittable = (status: OrderStatus) => {
+      if (status === 'ENTREGUE') {
         throw new ConflictException(
           'Este pedido já foi concluído. Não é possível reenviar.',
         );
       }
+      if (status === 'NEGOCIANDO') {
+        throw new ConflictException(
+          'Este pedido já está em negociação com o vendedor. Aguarde a confirmação.',
+        );
+      }
+    };
+
+    let order;
+    let isNewOrder = false;
+    if (existing) {
+      assertResubmittable(existing.status);
+      // Preserva o status atual (PENDENTE) — só a criação inicial define PENDENTE.
+      const { status: _ignored, ...updateData } = orderData;
       order = await this.prisma.itemInterest.update({
         where: { id: existing.id },
-        data: orderData,
+        data: updateData,
       });
     } else {
-      order = await this.prisma.itemInterest.create({
-        data: { itemId, buyerId, ...orderData },
-      });
+      try {
+        order = await this.prisma.itemInterest.create({
+          data: { itemId, buyerId, ...orderData },
+        });
+        isNewOrder = true;
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          // Corrida: outro request criou o pedido entre o findUnique e o create.
+          const raced = await this.prisma.itemInterest.findUniqueOrThrow({
+            where: { itemId_buyerId: { itemId, buyerId } },
+          });
+          assertResubmittable(raced.status);
+          const { status: _ignored, ...updateData } = orderData;
+          order = await this.prisma.itemInterest.update({
+            where: { id: raced.id },
+            data: updateData,
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (isNewOrder) {
       const offerHint =
         !item.isDonation && !acceptListedPrice && offeredPrice != null
           ? ` Propôs ${Number(offeredPrice).toLocaleString('pt-BR', {
@@ -412,19 +466,30 @@ export class ItemsService {
           'Só é possível negociar um pedido pendente.',
         );
       }
-      const [updatedOrder] = await this.prisma.$transaction([
-        this.prisma.itemInterest.update({
-          where: { id: orderId },
-          data: { status: 'NEGOCIANDO' },
-        }),
-        this.prisma.item.update({
-          where: { id: order.itemId },
+      const updatedOrder = await this.prisma.$transaction(async (tx) => {
+        // Só permite virar NEGOCIANDO se ninguém mais já estiver negociando
+        // este anúncio — evita que dois pedidos concorrentes "ganhem" a mesma vaga.
+        const itemUpdate = await tx.item.updateMany({
+          where: {
+            id: order.itemId,
+            status: { in: ['ATIVO', 'NEGOCIANDO'] },
+            OR: [{ negotiatingWithId: null }, { negotiatingWithId: order.buyerId }],
+          },
           data: {
             status: 'NEGOCIANDO',
             negotiatingWithId: order.buyerId,
           },
-        }),
-      ]);
+        });
+        if (itemUpdate.count === 0) {
+          throw new ConflictException(
+            'Este anúncio já está em negociação com outro comprador.',
+          );
+        }
+        return tx.itemInterest.update({
+          where: { id: orderId },
+          data: { status: 'NEGOCIANDO' },
+        });
+      });
 
       if (current !== 'NEGOCIANDO') {
         await this.notifications.create(
@@ -477,19 +542,27 @@ export class ItemsService {
           'Confirme a negociação antes de marcar como entregue.',
         );
       }
-      const [updatedOrder] = await this.prisma.$transaction([
-        this.prisma.itemInterest.update({
-          where: { id: orderId },
-          data: { status: 'ENTREGUE' },
-        }),
-        this.prisma.item.update({
-          where: { id: order.itemId },
+      const updatedOrder = await this.prisma.$transaction(async (tx) => {
+        const itemUpdate = await tx.item.updateMany({
+          where: {
+            id: order.itemId,
+            negotiatingWithId: order.buyerId,
+          },
           data: {
             status: 'CONCLUIDO',
             negotiatingWithId: order.buyerId,
           },
-        }),
-      ]);
+        });
+        if (itemUpdate.count === 0) {
+          throw new ConflictException(
+            'A negociação deste pedido não está mais ativa.',
+          );
+        }
+        return tx.itemInterest.update({
+          where: { id: orderId },
+          data: { status: 'ENTREGUE' },
+        });
+      });
 
       const others = await this.prisma.itemInterest.findMany({
         where: {
@@ -602,6 +675,12 @@ export class ItemsService {
   }
 
   async createComment(userId: string, itemId: string, dto: CreateCommentDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+    await this.ensureMarketplaceAccess(user);
+
     const item = await this.prisma.item.findUnique({ where: { id: itemId } });
     if (!item) {
       throw new NotFoundException('Anúncio não encontrado.');

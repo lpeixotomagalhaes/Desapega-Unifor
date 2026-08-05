@@ -201,7 +201,7 @@ function PublishProgress({
 export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
   const router = useRouter();
   const { user, token, ready } = useAuthRedirect();
-  const { addPendingItem, isOnline } = useOfflineQueue();
+  const { addPendingItem, isOnline, pendingItems } = useOfflineQueue();
 
   const [form, setForm] = useState({
     title: "",
@@ -218,6 +218,31 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [savedTitle, setSavedTitle] = useState("");
+  const [queuedId, setQueuedId] = useState<string | null>(null);
+
+  // Enquanto a tela "aguardando conexão" está aberta, observa a fila: assim
+  // que este rascunho for publicado (some da fila) ou falhar, atualiza a tela
+  // em vez de deixar o usuário preso em "aguardando conexão" para sempre.
+  useEffect(() => {
+    if (!queuedId || phase !== "waiting_connection") return;
+    const match = pendingItems.find((p) => p.id === queuedId);
+    if (!match) {
+      setPhase("success");
+      setStepStates((prev) => ({
+        ...prev,
+        dados: "done",
+        salvar_local: "done",
+        aguardar: "done",
+        concluido: "done",
+      }));
+      return;
+    }
+    if (match.status === "error") {
+      setPhase("error");
+      setError(match.error ?? "Não foi possível publicar o anúncio salvo offline.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingItems, queuedId, phase]);
 
   useEffect(() => {
     if (
@@ -266,7 +291,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
       concluido: "pending",
     });
     await sleep(350);
-    await addPendingItem(
+    const id = await addPendingItem(
       {
         title: form.title,
         description: form.description,
@@ -277,6 +302,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
       images.map((d) => d.file),
       token,
     );
+    setQueuedId(id);
     const title = form.title.trim();
     setSavedTitle(title);
     markOfflineItemJustSaved(title);
@@ -419,6 +445,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
                   setPhase("form");
                   setStepStates({});
                   setError(null);
+                  setQueuedId(null);
                 }}
                 className="rounded-xl border border-fog bg-white px-6 py-3 text-sm font-semibold text-navy transition-soft hover:border-brand"
               >
@@ -440,6 +467,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
                   setPhase("form");
                   setStepStates({});
                   setError(null);
+                  setQueuedId(null);
                 }}
                 className="rounded-xl border border-fog bg-white px-6 py-3 text-sm font-semibold text-navy transition-soft hover:border-brand"
               >
@@ -465,6 +493,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
             setPhase("form");
             setStepStates({});
             setError(null);
+            setQueuedId(null);
           }}
           className="mt-5 rounded-xl bg-navy px-6 py-3 text-sm font-semibold text-white hover:bg-brand"
         >

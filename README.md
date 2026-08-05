@@ -18,9 +18,43 @@ Frontend (Next.js PWA)  ──HTTP/JSON──▶  Backend (NestJS)  ──Prisma
 ```
 
 - **Autenticação**: JWT emitido pela própria API (`@nestjs/jwt` + Passport + bcrypt), com login social opcional via **Google (OAuth/Google Identity Services)**.
-- **Negociação**: sem chat interno — o botão "Tenho interesse" na página do produto registra o interesse no backend e abre uma conversa no **WhatsApp** com quem anunciou. Pagamento é sempre combinado para acontecer só após a conferência presencial do item no campus.
+- **Negociação**: sem chat interno — o comprador preenche um formulário de interesse (curso, matrícula, dia/local de encontro e proposta de valor), o vendedor aceita/recusa pelo painel de pedidos e a combinação final acontece no **WhatsApp**. Pagamento é sempre combinado para acontecer só após a conferência presencial do item no campus.
+- **Moderação/Admin**: dashboard interno (`/dashboard`) para banir/suspender contas, remover ou excluir anúncios, responder tickets de suporte e consultar o log de auditoria.
 - **Notificações**: painel no header com contagem de não lidas, atualizado por polling (sem WebSocket) — avisa o vendedor quando alguém se interessa e avisa outros interessados quando o status do anúncio muda.
-- **PWA**: `manifest.json` + Service Worker escrito à mão (`frontend/public/sw.js`) com cache-first para assets estáticos e network-first com fallback offline para dados da API.
+- **PWA**: `manifest.json` + Service Worker escrito à mão (`frontend/public/sw.js`), cadastro de anúncio offline (fila em IndexedDB + Background Sync) e navegação stale-while-revalidate para assets estáticos.
+
+## Funcionalidades implementadas
+
+### Marketplace (público / estudante)
+
+- Cadastro e login por e-mail/senha (bcrypt) ou **Google Identity Services**; onboarding guiado no primeiro acesso e tela de "completar perfil" (WhatsApp, curso, matrícula) quando faltam dados obrigatórios.
+- Feed de anúncios com busca por texto, filtro por categoria e paginação simples, tanto na landing pública (`/`) quanto no app autenticado (`/app`).
+- CRUD de anúncios: criação com até 5 fotos (upload com validação de tipo/tamanho), edição de status (`ATIVO` → `NEGOCIANDO` → `CONCLUIDO`) e exclusão pelo dono.
+- Fluxo de interesse/pedido: formulário com curso, matrícula, dia/horário e bloco do campus para encontro, aceitando o preço anunciado ou propondo outro valor; o vendedor decide quem aceitar e o pedido aceito vira uma negociação com WhatsApp liberado.
+- Avaliações (0–5 estrelas + comentário) do vendedor após a entrega, exibidas no perfil público do usuário junto com o histórico de vendas/doações.
+- Itens salvos ("favoritos"), itens vistos recentemente (cache local) e central de notificações com contagem de não lidas.
+- Central de suporte: abertura de chamado pelo usuário e acompanhamento do status.
+- Perfil público por usuário (`/perfil/:id`) com reputação, anúncios ativos e histórico de negociações concluídas.
+- Interface 100% responsiva: navegação por abas + bottom tab bar no mobile, header completo no desktop.
+
+### Dashboard administrativo (`/dashboard`, roles `ADMIN`/`SUPER_ADMIN`)
+
+- Visão geral com métricas (usuários, anúncios ativos, negociações, pedidos concluídos), com cache local para consulta rápida offline.
+- Gestão de usuários: busca por e-mail (com debounce), filtro por role/status, banir, suspender por N dias ou reativar conta — reativar também restaura automaticamente os anúncios que haviam sido suspensos junto com a moderação.
+- Gestão de anúncios: busca por título/vendedor, suspender (reversível) ou excluir (permanente) qualquer anúncio.
+- Central de suporte administrativa: listar e responder tickets abertos pelos usuários.
+- Log de auditoria: histórico de todas as ações administrativas (quem, quando, o quê).
+- Gestão de administradores (somente `SUPER_ADMIN`): promover/revogar acesso admin.
+
+### PWA e modo offline
+
+- App instalável (`manifest.json`, ícones, tema) com Service Worker versionado (`frontend/public/sw.js`).
+- **Cadastro de anúncio offline**: o formulário salva o rascunho (dados + fotos) no IndexedDB e mostra uma esteira de progresso ("Dados salvos" → "Aguardando conexão" → "Publicado"); ao reconectar, a fila é publicada automaticamente (evento `online` + Background Sync no Chrome/Android) e a foto já enviada não é reenviada em caso de nova tentativa.
+- A fila offline é isolada por usuário logado (nada de um rascunho vazar para a próxima conta que usar o mesmo aparelho) e é limpa no logout.
+- **Itens vistos recentemente** ficam disponíveis offline (IndexedDB) e aparecem como fallback na aba Explorar quando a rede cai.
+- "Meus anúncios" e as estatísticas do dashboard guardam o último snapshot bem-sucedido (por usuário) para exibição quando a API está inacessível.
+- Indicador global de conectividade (banner) mostrando: offline com N itens na fila, publicando N itens, ou N itens com falha ao publicar.
+- Chamadas de API **nunca** são cacheadas pelo Service Worker (evita servir dados de outra conta no mesmo aparelho) — só o app-shell e assets estáticos usam cache.
 
 ## Como rodar localmente
 
@@ -73,35 +107,82 @@ aparece e o cadastro/login por e-mail e senha continua funcionando normalmente.
 
 ## Principais tecnologias
 
-- **Backend**: NestJS, Prisma ORM, PostgreSQL (Supabase), Passport JWT, class-validator, bcrypt
-- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
-- **PWA**: Web App Manifest + Service Worker (Cache Storage API)
+- **Backend**: NestJS, Prisma ORM, PostgreSQL (Supabase), Passport JWT, class-validator, bcrypt, `@nestjs/throttler` (rate limiting)
+- **Frontend**: Next.js (App Router), React, TypeScript, Tailwind CSS
+- **PWA**: Web App Manifest + Service Worker (Cache Storage API), IndexedDB (fila offline + itens vistos), Background Sync
+
+Histórico completo de mudanças em [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Endpoints da API
 
-| Método | Rota                        | Auth | Descrição                                                          |
-| ------ | --------------------------- | ---- | ------------------------------------------------------------------- |
-| POST   | `/auth/register`            | —    | Cria usuário (nome, e-mail, senha forte, WhatsApp) e retorna JWT     |
-| POST   | `/auth/login`                | —    | Autentica e retorna JWT                                             |
-| POST   | `/auth/google`               | —    | Login/cadastro via ID token do Google, retorna JWT                  |
-| GET    | `/auth/check-email`          | —    | `?email=` → `{ exists }`, usado no cadastro para checar duplicidade |
-| GET    | `/auth/me`                   | JWT  | Dados do usuário logado                                             |
-| PATCH  | `/auth/me`                   | JWT  | Atualiza nome/WhatsApp/avatar (usado em `/completar-perfil`)         |
-| PATCH  | `/auth/me/onboarding`        | JWT  | Marca o tour de onboarding como concluído                           |
-| GET    | `/items`                     | —    | Lista anúncios ativos/em negociação (filtros `?category=&search=`)  |
-| GET    | `/items/mine`                | JWT  | Anúncios do usuário logado (todos os status)                        |
-| GET    | `/items/mine/interests`      | JWT  | Interesses recebidos nos anúncios do usuário logado                 |
-| GET    | `/items/:id`                 | —    | Detalhe de um anúncio                                               |
-| POST   | `/items`                     | JWT  | Cria anúncio (exige WhatsApp cadastrado)                            |
-| POST   | `/uploads`                   | JWT  | Upload de imagem do anúncio (JPG/PNG/WEBP/GIF, máx. 5 MB)           |
-| PATCH  | `/items/:id/status`          | JWT  | Muda status (`ATIVO`/`NEGOCIANDO`/`CONCLUIDO`), apenas o dono        |
-| POST   | `/items/:id/interest`        | JWT  | Registra interesse e retorna `{ whatsappUrl }` para contato          |
-| DELETE | `/items/:id`                 | JWT  | Remove anúncio (apenas o dono)                                      |
-| GET    | `/notifications`             | JWT  | Últimas 30 notificações do usuário                                   |
-| GET    | `/notifications/unread-count`| JWT  | Contagem de notificações não lidas                                   |
-| PATCH  | `/notifications/:id/read`    | JWT  | Marca uma notificação como lida                                      |
-| PATCH  | `/notifications/read-all`    | JWT  | Marca todas as notificações como lidas                               |
-| GET    | `/stats`                     | —    | Estatísticas para a landing page                                    |
+Limite de requisições (`@nestjs/throttler`): 120 req/min por IP no geral, com limites mais baixos em `/auth/*` (5–15 req/min) contra brute-force.
+
+### Autenticação & perfil
+
+| Método | Rota                   | Auth | Descrição                                                            |
+| ------ | ---------------------- | ---- | --------------------------------------------------------------------- |
+| POST   | `/auth/register`       | —    | Cria usuário (nome, e-mail, senha forte, WhatsApp) e retorna JWT       |
+| POST   | `/auth/login`          | —    | Autentica e retorna JWT                                                |
+| POST   | `/auth/google`         | —    | Login/cadastro via ID token do Google (exige e-mail verificado), retorna JWT |
+| GET    | `/auth/check-email`    | —    | `?email=` → `{ exists }`, usado no cadastro para checar duplicidade    |
+| GET    | `/auth/me`             | JWT  | Dados do usuário logado                                                |
+| PATCH  | `/auth/me`             | JWT  | Atualiza nome/WhatsApp/avatar/bio/curso (usado em `/completar-perfil` e no perfil) |
+| PATCH  | `/auth/me/onboarding`  | JWT  | Marca o tour de onboarding como concluído                              |
+| GET    | `/users/:id/profile`   | —    | Perfil público (reputação, anúncios ativos, histórico de negociações) |
+
+### Anúncios & pedidos
+
+| Método | Rota                          | Auth | Descrição                                                                |
+| ------ | ----------------------------- | ---- | --------------------------------------------------------------------------- |
+| GET    | `/items`                      | —    | Lista anúncios ativos/em negociação (filtros `?category=&search=`)          |
+| GET    | `/items/mine`                 | JWT  | Anúncios do usuário logado (todos os status)                                |
+| GET    | `/items/mine/interests`       | JWT  | Pedidos recebidos nos anúncios do usuário logado                            |
+| GET    | `/items/mine/purchases`       | JWT  | Pedidos que o usuário (comprador) enviou em anúncios de outros              |
+| GET    | `/items/:id`                  | —    | Detalhe de um anúncio                                                       |
+| POST   | `/items`                      | JWT  | Cria anúncio (exige WhatsApp cadastrado)                                    |
+| PATCH  | `/items/:id/status`           | JWT  | Muda status (`ATIVO`/`NEGOCIANDO`/`CONCLUIDO`), apenas o dono               |
+| DELETE | `/items/:id`                  | JWT  | Remove anúncio (apenas o dono)                                              |
+| POST   | `/items/:id/orders`           | JWT  | Envia/atualiza um pedido de interesse (curso, matrícula, encontro, valor)   |
+| PATCH  | `/items/orders/:orderId/status` | JWT | Vendedor aceita (`NEGOCIANDO`) ou confirma entrega (`ENTREGUE`) de um pedido |
+| GET    | `/items/:id/comments`         | —    | Lista comentários/dúvidas públicas do anúncio                              |
+| POST   | `/items/:id/comments`         | JWT  | Comenta em um anúncio (bloqueado para contas banidas/suspensas)            |
+| POST   | `/uploads`                    | JWT  | Upload de imagem do anúncio (JPG/PNG/WEBP/GIF, máx. 5 MB, mimetype+extensão validados) |
+
+### Avaliações, salvos, notificações e suporte
+
+| Método | Rota                           | Auth | Descrição                                              |
+| ------ | ------------------------------ | ---- | -------------------------------------------------------- |
+| POST   | `/reviews`                     | JWT  | Avalia o vendedor após um pedido `ENTREGUE`               |
+| GET    | `/reviews/pending`             | JWT  | Pedidos entregues aguardando avaliação do comprador       |
+| GET    | `/saved-items`                 | JWT  | Anúncios salvos pelo usuário                              |
+| GET    | `/saved-items/ids`             | JWT  | Apenas os ids salvos (para marcar o coração nos cards)     |
+| POST   | `/saved-items/:itemId`         | JWT  | Salva um anúncio                                          |
+| DELETE | `/saved-items/:itemId`         | JWT  | Remove um anúncio dos salvos                              |
+| GET    | `/notifications`               | JWT  | Últimas 30 notificações do usuário                         |
+| GET    | `/notifications/unread-count`  | JWT  | Contagem de notificações não lidas                         |
+| PATCH  | `/notifications/:id/read`      | JWT  | Marca uma notificação como lida                            |
+| PATCH  | `/notifications/read-all`      | JWT  | Marca todas as notificações como lidas                     |
+| POST   | `/support/tickets`             | JWT  | Abre um chamado de suporte                                 |
+| GET    | `/support/tickets/mine`        | JWT  | Chamados abertos pelo usuário logado                       |
+| GET    | `/stats`                       | —    | Estatísticas para a landing page                          |
+
+### Administração (`ADMIN` / `SUPER_ADMIN`)
+
+| Método | Rota                            | Auth  | Descrição                                                        |
+| ------ | ------------------------------- | ----- | ------------------------------------------------------------------- |
+| GET    | `/admin/stats`                  | Admin | Métricas gerais para o dashboard                                     |
+| GET    | `/admin/users`                  | Admin | Lista/filtra usuários (`page`, `limit`, `role`, `email`, `accountStatus`) |
+| PATCH  | `/admin/users/:id/moderate`     | Admin | Banir, suspender (N dias) ou reativar uma conta                     |
+| GET    | `/admin/items`                  | Admin | Lista/filtra anúncios (`page`, `limit`, `status`, `search`)          |
+| PATCH  | `/admin/items/:id/take-down`    | Admin | Suspende um anúncio (reversível)                                     |
+| PATCH  | `/admin/items/:id/restore`      | Admin | Reativa um anúncio suspenso                                          |
+| DELETE | `/admin/items/:id`              | Admin | Exclui um anúncio permanentemente                                    |
+| GET    | `/admin/support`                | Admin | Lista chamados de suporte (`?status=`)                               |
+| PATCH  | `/admin/support/:id`            | Admin | Responde/atualiza status de um chamado                               |
+| GET    | `/admin/admins`                 | Super admin | Lista administradores                                         |
+| POST   | `/admin/admins`                 | Super admin | Promove um usuário a `ADMIN`                                  |
+| PATCH  | `/admin/admins/:id/revoke`      | Super admin | Revoga o acesso admin de um usuário                            |
+| GET    | `/admin/audit`                  | Admin | Log de auditoria das ações administrativas (`page`, `limit`, `action`) |
 
 ## Diário de Bordo da IA
 
@@ -109,33 +190,60 @@ aparece e o cadastro/login por e-mail e senha continua funcionando normalmente.
 
 ### Ferramentas utilizadas
 
-<!-- TODO: liste as IAs usadas ao longo dos 15 dias (ex: Cursor, ChatGPT, Claude, Copilot...) -->
-
-- Cursor (agente de IA no editor)
+- **Cursor** (agente de IA no editor, modo Agent) foi a ferramenta principal usada do dia 1 ao dia 15: geração de código, refatorações grandes, debugging interativo (lendo logs/erros de terminal em tempo real), varredura de code review e escrita desta documentação.
+- Subagentes especializados do próprio Cursor (`explore`) foram usados para auditar backend e frontend em paralelo em busca de bugs, código morto e falhas de segurança antes da entrega final.
+- Modelos de linguagem por trás do agente (família Claude/GPT, conforme configurado no Cursor) para geração de código; nenhuma ferramenta de IA foi usada para gerar texto de commit/PR sem revisão humana.
 
 ### Estratégia de engenharia de prompts
 
-<!-- TODO: cole aqui 2-3 prompts reais e complexos usados durante o desenvolvimento -->
+O fluxo de trabalho foi majoritariamente conversacional e iterativo: descrever o comportamento desejado em português, revisar o diff proposto, rodar a aplicação, e devolver o erro real (stack trace, comportamento incorreto) para o agente corrigir — em vez de tentar descrever a causa raiz de antemão.
 
-**Prompt 1 — Estruturação inicial do projeto:**
-
-```
-(colar prompt aqui)
-```
-
-**Prompt 2 — Service Worker do PWA:**
+**Prompt 1 — Implementação do modo offline (PWA) do zero:**
 
 ```
-(colar prompt aqui)
+quero q vc me ajude a criar o service worker do projeto para carregar algumas
+informações em cache para funcionamento e visualização offline de dados.
+primeiro gostaria q o usuario conseguisse cadastrar um produto offline e
+quando o mesmo se conectar a internet, ele consiga publicar o produto.
+gostaria q ele pudesse acessar produtos visualizados anteriormente,
+salvando-os em cache. gostaria q implementasse algumas funcionalidades
+offline a mais na dashboard também, estou aberto a sugestões
 ```
 
-### Compartilhamento de histórico (opcional)
+Esse prompt (deliberadamente aberto, "estou aberto a sugestões") gerou um plano em várias etapas — Service Worker com estratégias de cache diferentes por tipo de recurso, IndexedDB para fila de anúncios pendentes e itens vistos, `Background Sync` para publicar ao reconectar, e cache de estatísticas no dashboard admin — que foi revisado e ajustado antes da implementação.
 
-<!-- TODO: link de pelo menos um chat longo de desenvolvimento, se possível -->
+**Prompt 2 — Refinamento de UX guiado por bug real em produção:**
+
+```
+eu tentei criar o anuncio mas aparece uma mensagem de erro ao carregar o
+anuncio, quero q tenha tratamento de dados, coloque algo visual dizendo
+anuncio carregado, aguardando conexao para publicar. quero q tenha
+tratamento nas funcionalidades do pwa
+```
+
+Aqui o prompt partiu de um problema observado (mensagem de erro incorreta ao criar anúncio offline) e não de uma especificação técnica — o agente teve que diagnosticar que a tela "Meus anúncios" tratava qualquer falha de rede como erro genérico, mesmo quando havia um item pendente na fila local, e depois desenhar os estados visuais (carregado → aguardando conexão → publicado).
+
+**Prompt 3 — Varredura de qualidade/segurança em todo o projeto:**
+
+```
+gostaria q vc fizesse uma varredura pelo meu código, verificasse todos os
+possíveis erros, implementações incompletas e códigos redundantes ou
+desnecessários e corrija-os. quero q pense na interface tanto da web como
+mobile, tanto o marketplace como a dashboard administrativa. [...] quero q
+revise os arquivos do trabalho passado e preencha o readme com as
+funcionalidades implementadas e o diário de bordo
+```
+
+Esse pedido guiou a etapa final do projeto: dois subagentes de exploração (backend e frontend) foram disparados em paralelo para mapear problemas, os achados foram priorizados manualmente (segurança > corretude > UX > código morto) e corrigidos um a um com validação de `build`/`typecheck` a cada lote de mudanças.
 
 ### Reflexão crítica
 
-<!-- TODO: descreva um momento em que a IA errou/alucinou, como você identificou e corrigiu -->
+Durante a varredura final (Prompt 3 acima), a auditoria automatizada encontrou **dois problemas que a própria IA havia introduzido em iterações anteriores** e que passariam despercebidos em uma revisão superficial:
+
+1. **Endpoints de debug esquecidos em produção.** Ao investigar um erro de serialização de `Decimal` do Prisma dias antes, o agente criou `GET /debug/items` e `GET /debug/user-schema` em `app.controller.ts` para inspecionar o banco em produção — úteis naquele momento, mas **sem nenhuma autenticação** e devolvendo e-mail, `googleId` e schema completo da tabela `User`. O comentário `/** Diagnóstico temporário (remover depois) */` deixado pela própria IA é exatamente o tipo de "alucinação de escopo" que só aparece numa revisão dedicada: o agente resolveu o problema imediato mas não fechou o loop de segurança. Corrigido removendo os dois endpoints por completo.
+2. **Moderação destrutiva por engano.** Ao implementar banimento/suspensão de contas, o agente reaproveitou o status `CONCLUIDO` (usado para "vendido/doado") para tirar anúncios do feed em vez de introduzir o status `SUSPENSO` que já existia no schema para esse fim — um erro de raciocínio, não de digitação: o efeito visual (some do feed) era o esperado, mas a ação virava **irreversível** (reativar a conta não trazia os anúncios de volta, e eles ficavam marcados como "vendidos" incorretamente no histórico do vendedor). Identificado ao comparar o enum `ItemStatus` do schema com o código de moderação; corrigido para usar `SUSPENSO` e restaurar os itens automaticamente ao reativar a conta.
+
+O aprendizado prático: pedir à IA para "resolver o bug X" tende a produzir uma correção pontual e plausível à primeira vista, mas só uma segunda passada com foco em *consistência do domínio* (schema, enums, ciclo de vida dos dados) revela esse tipo de efeito colateral. Por isso a etapa de varredura final foi tratada como obrigatória e não como polimento opcional.
 
 ## Deploy (produção) — Render + Supabase
 
@@ -181,7 +289,7 @@ Teste rápido: abra `https://SEU-API.onrender.com/` — deve retornar JSON com `
 Se vier `"db":"down"`, a API subiu mas **não conecta no Supabase**. Confira:
 1. `DATABASE_URL` é o **Transaction pooler** (6543 / `pooler.supabase.com`), senha correta (URL-encode caracteres especiais)
 2. Em **Supabase → Database → Network Restrictions**, ou deixe aberto, ou libere os IPs outbound do Render (ex. `74.220.48.0/24` e `74.220.56.0/24` no Connect do serviço)
-3. Veja o campo `dbError` no JSON do `/` e os logs do Render (`Falha ao conectar no Postgres`)
+3. Veja os **logs do Render** (`Health check: Postgres down — ...`) — o motivo do erro não é exposto na resposta pública por segurança, só no log do servidor
 
 ### 2. Subir o frontend na Vercel
 

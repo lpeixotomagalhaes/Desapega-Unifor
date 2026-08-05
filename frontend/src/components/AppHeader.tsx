@@ -296,11 +296,12 @@ function AppHeaderInner() {
             className="header-nav-item flex shrink-0 items-center gap-0.5 sm:gap-1"
             style={{ animationDelay: "0.16s" }}
           >
+            {/* Desktop-only: no mobile ficam só busca + notificações (atalhos no tab bar) */}
             <HeaderLink
               href="/app?tab=meus"
               label="Meus anúncios"
               icon={<GridIcon className="h-5 w-5 sm:h-6 sm:w-6" />}
-              className="hidden md:inline-flex"
+              className="max-md:hidden"
             />
 
             <HeaderIconButton
@@ -312,7 +313,7 @@ function AppHeaderInner() {
                 openSupport();
               }}
               icon={<SupportIcon className="h-5 w-5 sm:h-6 sm:w-6" />}
-              className="hidden md:inline-flex"
+              className="max-md:hidden"
             />
 
             <div className="relative">
@@ -410,7 +411,7 @@ function HeaderLink({
       href={href}
       aria-label={label}
       title={label}
-      className={`group inline-flex items-center rounded-lg px-2 py-1.5 text-navy/75 transition-soft hover:bg-mist hover:text-navy ${className}`}
+      className={`group items-center rounded-lg px-2 py-1.5 text-navy/75 transition-soft hover:bg-mist hover:text-navy inline-flex ${className}`}
     >
       <span className="shrink-0 text-navy/60 transition-soft group-hover:text-navy">
         {icon}

@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { api, type AuthResponse, type SessionUser } from "./api";
+import { deletePendingItemsForUser } from "./offlineDb";
 
 const TOKEN_KEY = "desapega.token";
 const USER_KEY = "desapega.user";
@@ -52,9 +53,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    // Evita que a próxima conta usada neste aparelho veja/flushe rascunhos
+    // offline (e o JWT armazenado junto) de quem acabou de sair.
+    if (user) {
+      void deletePendingItemsForUser(user.id).catch(() => {});
+    }
     setToken(null);
     setUser(null);
-  }, []);
+  }, [user]);
 
   const refreshUser = useCallback(async () => {
     const current = localStorage.getItem(TOKEN_KEY);

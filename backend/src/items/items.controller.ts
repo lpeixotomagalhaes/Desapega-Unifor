@@ -41,12 +41,6 @@ export class ItemsController {
     return this.itemsService.findMyInterests(user.id);
   }
 
-  @Get('mine/orders')
-  @UseGuards(JwtAuthGuard)
-  findMyOrders(@CurrentUser() user: AuthenticatedUser) {
-    return this.itemsService.findMyInterests(user.id);
-  }
-
   @Get('mine/purchases')
   @UseGuards(JwtAuthGuard)
   findMyPurchases(@CurrentUser() user: AuthenticatedUser) {
@@ -107,23 +101,6 @@ export class ItemsController {
     @Body() dto: CreateOrderDto,
   ) {
     return this.itemsService.createOrder(user.id, id, dto);
-  }
-
-  /** @deprecated Prefer POST /items/:id/orders */
-  @Post(':id/interest')
-  @UseGuards(JwtAuthGuard)
-  expressInterestLegacy(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    return this.itemsService.createOrder(user.id, id, {
-      course: 'Não informado',
-      enrollment: 'Não informado',
-      acceptListedPrice: true,
-      meetupDay: 'A combinar',
-      meetupTime: 'A combinar',
-      campusBlock: 'A combinar',
-    });
   }
 
   @Delete(':id')

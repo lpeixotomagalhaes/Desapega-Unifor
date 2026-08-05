@@ -1,10 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useOfflineQueue } from "@/lib/offlineQueue";
 
 /** Slim banner: offline status and/or pending publish count. Must be under OfflineQueueProvider. */
 export function OfflineStatusBanner() {
-  const { isOnline, pendingCount } = useOfflineQueue();
+  const { isOnline, pendingItems, pendingCount } = useOfflineQueue();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Evita mismatch SSR/cliente (navigator.onLine / fila IndexedDB só existem no browser)
+  if (!mounted) return null;
 
   if (isOnline && pendingCount === 0) return null;
 
@@ -28,13 +37,30 @@ export function OfflineStatusBanner() {
     );
   }
 
+  const errorCount = pendingItems.filter((i) => i.status === "error").length;
+  const activeCount = pendingCount - errorCount;
+
+  if (activeCount === 0 && errorCount > 0) {
+    return (
+      <div
+        role="status"
+        className="border-b border-red-200 bg-red-50 px-4 py-2.5 text-center text-sm text-red-800"
+      >
+        {errorCount} anúncio{errorCount === 1 ? "" : "s"} da fila offline{" "}
+        {errorCount === 1 ? "falhou" : "falharam"} ao publicar — veja em Meus
+        anúncios.
+      </div>
+    );
+  }
+
   return (
     <div
       role="status"
       className="border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-center text-sm text-emerald-900"
     >
-      Publicando {pendingCount} anúncio{pendingCount === 1 ? "" : "s"} da fila
+      Publicando {activeCount} anúncio{activeCount === 1 ? "" : "s"} da fila
       offline…
+      {errorCount > 0 ? ` (${errorCount} com falha)` : ""}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Category, UserRole } from '../generated/prisma/enums';
+import { sanitizeLimit, sanitizePage } from '../common/pagination.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminTakeDownItemDto } from './dto/admin-take-down-item.dto';
@@ -178,8 +179,8 @@ export class AdminService {
     email?: string;
     accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'BANNED';
   }) {
-    const page = Math.max(1, params.page ?? 1);
-    const limit = Math.min(100, Math.max(1, params.limit ?? 20));
+    const page = sanitizePage(params.page);
+    const limit = sanitizeLimit(params.limit, 20);
     const where = {
       ...(params.role ? { role: params.role } : {}),
       ...(params.accountStatus
@@ -246,16 +247,23 @@ export class AdminService {
     }
 
     if (dto.action === ModerateUserAction.RESTORE) {
-      const updated = await this.prisma.user.update({
-        where: { id: targetId },
-        data: {
-          accountStatus: 'ACTIVE',
-          suspendedUntil: null,
-          moderationReason: null,
-          moderatedAt: new Date(),
-          moderatedById: adminId,
-        },
-        select: USER_MODERATION_SELECT,
+      const updated = await this.prisma.$transaction(async (tx) => {
+        // Reativa anúncios que foram derrubados junto com o banimento/suspensão.
+        await tx.item.updateMany({
+          where: { userId: targetId, status: 'SUSPENSO' },
+          data: { status: 'ATIVO' },
+        });
+        return tx.user.update({
+          where: { id: targetId },
+          data: {
+            accountStatus: 'ACTIVE',
+            suspendedUntil: null,
+            moderationReason: null,
+            moderatedAt: new Date(),
+            moderatedById: adminId,
+          },
+          select: USER_MODERATION_SELECT,
+        });
       });
 
       await this.notifications.create(
@@ -291,7 +299,7 @@ export class AdminService {
               status: { in: ['ATIVO', 'NEGOCIANDO'] },
             },
             data: {
-              status: 'CONCLUIDO',
+              status: 'SUSPENSO',
               negotiatingWithId: null,
             },
           });
@@ -352,7 +360,7 @@ export class AdminService {
             status: { in: ['ATIVO', 'NEGOCIANDO'] },
           },
           data: {
-            status: 'CONCLUIDO',
+            status: 'SUSPENSO',
             negotiatingWithId: null,
           },
         });
@@ -402,8 +410,8 @@ export class AdminService {
     status?: 'ATIVO' | 'NEGOCIANDO' | 'CONCLUIDO' | 'SUSPENSO';
     search?: string;
   }) {
-    const page = Math.max(1, params.page ?? 1);
-    const limit = Math.min(100, Math.max(1, params.limit ?? 20));
+    const page = sanitizePage(params.page);
+    const limit = sanitizeLimit(params.limit, 20);
     const search = params.search?.trim();
     const where = {
       ...(params.status ? { status: params.status } : {}),

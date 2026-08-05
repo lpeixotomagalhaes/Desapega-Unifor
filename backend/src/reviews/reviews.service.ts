@@ -5,6 +5,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  assertMarketplaceAllowed,
+  isSuspensionExpired,
+} from '../auth/account-access.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -16,7 +20,39 @@ export class ReviewsService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  private async ensureMarketplaceAccess(user: {
+    id?: string;
+    accountStatus: string;
+    suspendedUntil: Date | null;
+    moderationReason: string | null;
+  }) {
+    if (isSuspensionExpired(user as never)) {
+      if (user.id) {
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: {
+            accountStatus: 'ACTIVE',
+            suspendedUntil: null,
+            moderationReason: null,
+            moderatedAt: null,
+            moderatedById: null,
+          },
+        });
+      }
+      return;
+    }
+    assertMarketplaceAllowed(user as never);
+  }
+
   async create(raterId: string, dto: CreateReviewDto) {
+    const rater = await this.prisma.user.findUnique({
+      where: { id: raterId },
+    });
+    if (!rater) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+    await this.ensureMarketplaceAccess(rater);
+
     const order = await this.prisma.itemInterest.findUnique({
       where: { id: dto.orderId },
       include: {

@@ -14,11 +14,18 @@ const NAV_LINKS = [
 
 const CATEGORY_KEYS = (Object.keys(CATEGORIES) as Category[]).slice(0, 5);
 
-export function SiteFooter() {
+type SiteFooterProps = {
+  /** Extra classes on the root <footer> (e.g. max-md:hidden). */
+  className?: string;
+};
+
+export function SiteFooter({ className = "" }: SiteFooterProps) {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative overflow-hidden bg-navy-deep text-white">
+    <footer
+      className={`relative overflow-hidden bg-navy-deep text-white ${className}`.trim()}
+    >
       <div
         className="pointer-events-none absolute inset-0 opacity-40"
         aria-hidden

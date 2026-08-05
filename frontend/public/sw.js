@@ -13,7 +13,7 @@
  * não existe — o flush principal continua sendo o evento "online" na app.
  */
 
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const STATIC_CACHE = `desapega-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `desapega-dynamic-${CACHE_VERSION}`;
 const DYNAMIC_CACHE_LIMIT = 100;
@@ -108,6 +108,25 @@ async function staleWhileRevalidate(request) {
   return cached ?? networkFetch;
 }
 
+/**
+ * Só rede, sem cache algum — usado para a API (outra origem). A Cache API
+ * ignora o header Authorization na chave, então cachear respostas da API
+ * arriscaria devolver dados de outra conta para quem usa o mesmo aparelho.
+ * As telas que precisam de dados offline já guardam seu próprio snapshot
+ * (localStorage/IndexedDB) com escopo por usuário — ver lib/offlineQueue.tsx,
+ * lib/myItemsCache.ts etc.
+ */
+async function networkOnly(request) {
+  try {
+    return await fetch(request);
+  } catch {
+    return new Response(
+      JSON.stringify({ offline: true, message: "Você está offline." }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
+    );
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -118,10 +137,13 @@ self.addEventListener("fetch", (event) => {
   const isSameOrigin = url.origin === self.location.origin;
   const isNavigation = request.mode === "navigate";
 
-  if (isNavigation || !isSameOrigin) {
-    // Páginas e chamadas à API (outra origem): dados sempre frescos,
-    // com fallback offline
+  if (isNavigation) {
+    // Páginas do próprio app: dados sempre frescos, com fallback pro
+    // cache/app-shell quando offline.
     event.respondWith(networkFirst(request));
+  } else if (!isSameOrigin) {
+    // Chamadas à API (outra origem): nunca cacheamos.
+    event.respondWith(networkOnly(request));
   } else {
     // Assets estáticos do próprio app
     event.respondWith(staleWhileRevalidate(request));

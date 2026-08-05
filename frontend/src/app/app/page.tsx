@@ -164,6 +164,7 @@ function ExploreTab({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     setItems(null);
     setError(false);
     const timeout = setTimeout(() => {
@@ -172,10 +173,17 @@ function ExploreTab({
           category: category ?? undefined,
           search: search.trim() || undefined,
         })
-        .then(setItems)
-        .catch(() => setError(true));
+        .then((data) => {
+          if (!cancelled) setItems(data);
+        })
+        .catch(() => {
+          if (!cancelled) setError(true);
+        });
     }, 300); // debounce da busca
-    return () => clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [category, search]);
 
   const showOfflineFallback = error && !isOnline;
@@ -296,15 +304,23 @@ function SavedItemsTab() {
 
   useEffect(() => {
     if (!token) return;
+    let cancelled = false;
     setItems(null);
     setError(false);
     api
       .getSavedItems(token)
-      .then((rows) => setItems(rows.map((r) => r.item)))
+      .then((rows) => {
+        if (!cancelled) setItems(rows.map((r) => r.item));
+      })
       .catch(() => {
-        setItems([]);
-        setError(true);
+        if (!cancelled) {
+          setItems([]);
+          setError(true);
+        }
       });
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   if (!ready || !token) return null;

@@ -454,16 +454,6 @@ export const api = {
       token,
     }),
 
-  /** @deprecated Prefer createOrder */
-  expressInterest: (token: string, id: string) =>
-    request<{ order: ItemInterest; whatsappUrl: string }>(
-      `/items/${id}/interest`,
-      {
-        method: "POST",
-        token,
-      },
-    ),
-
   deleteItem: (token: string, id: string) =>
     request<{ deleted: boolean }>(`/items/${id}`, { method: "DELETE", token }),
 

@@ -8,11 +8,21 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : null;
+
+  if (!corsOrigins && process.env.NODE_ENV === 'production') {
+    console.warn(
+      'CORS_ORIGIN não definido em produção — refletindo qualquer origem. Configure CORS_ORIGIN com a URL do frontend.',
+    );
+  }
+
   app.enableCors({
     // Em produção, defina CORS_ORIGIN com a URL do frontend (separar por vírgula se houver mais de uma)
-    origin: process.env.CORS_ORIGIN
-      ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
-      : true,
+    origin: corsOrigins ?? true,
   });
 
   const uploadDir = join(process.cwd(), 'uploads');

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
+import { sanitizeLimit, sanitizePage } from '../common/pagination.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type AuditWriteInput = {
@@ -33,8 +34,8 @@ export class AuditService {
     limit?: number;
     action?: string;
   }) {
-    const page = Math.max(1, params.page ?? 1);
-    const limit = Math.min(100, Math.max(1, params.limit ?? 40));
+    const page = sanitizePage(params.page);
+    const limit = sanitizeLimit(params.limit, 40);
     const where = params.action?.trim()
       ? { action: params.action.trim() }
       : undefined;

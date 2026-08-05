@@ -13,6 +13,7 @@ import {
   type ItemStatus,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 type AdminItem = Item & {
   user: {
@@ -42,13 +43,15 @@ export default function DashboardItemsPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const debouncedSearch = useDebouncedValue(search, 350);
+
   const load = async () => {
     if (!token) return;
     setLoading(true);
     try {
       const data = await api.getAdminItems(token, {
         limit: 40,
-        search: search.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         status: status || undefined,
       });
       setItems(data.items);
@@ -63,7 +66,7 @@ export default function DashboardItemsPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, search, status]);
+  }, [token, debouncedSearch, status]);
 
   const runAction = async (mode: "suspend" | "restore" | "delete") => {
     if (!token || !selected) return;

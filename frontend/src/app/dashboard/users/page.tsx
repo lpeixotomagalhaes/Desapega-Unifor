@@ -10,6 +10,7 @@ import {
   type UserRole,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 const ROLE_LABEL: Record<UserRole, string> = {
   USER: "Usuário",
@@ -50,13 +51,15 @@ function DashboardUsersInner() {
     if (fromQuery) setEmail(fromQuery);
   }, [searchParams]);
 
+  const debouncedEmail = useDebouncedValue(email, 350);
+
   const load = async () => {
     if (!token) return;
     setLoading(true);
     try {
       const data = await api.getAdminUsers(token, {
         limit: 50,
-        email: email.trim() || undefined,
+        email: debouncedEmail.trim() || undefined,
         role: role || undefined,
         accountStatus: accountStatus || undefined,
       });
@@ -80,7 +83,7 @@ function DashboardUsersInner() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, email, role, accountStatus]);
+  }, [token, debouncedEmail, role, accountStatus]);
 
   const openModerate = (u: AdminUserRow) => {
     setSelected(u);

@@ -90,7 +90,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email: dto.email.trim().toLowerCase() },
     });
     if (
       !user ||
@@ -112,7 +112,13 @@ export class AuthService {
     }
 
     let payload:
-      | { sub?: string; email?: string; name?: string; picture?: string }
+      | {
+          sub?: string;
+          email?: string;
+          email_verified?: boolean;
+          name?: string;
+          picture?: string;
+        }
       | undefined;
     try {
       const ticket = await this.googleClient.verifyIdToken({
@@ -132,6 +138,12 @@ export class AuthService {
       );
     }
 
+    if (payload.email_verified === false) {
+      throw new UnauthorizedException('O e-mail da conta Google não está verificado.');
+    }
+
+    const email = payload.email.trim().toLowerCase();
+
     try {
       let user = await this.prisma.user.findUnique({
         where: { googleId: payload.sub },
@@ -140,7 +152,7 @@ export class AuthService {
 
       if (!user) {
         const byEmail = await this.prisma.user.findUnique({
-          where: { email: payload.email },
+          where: { email },
         });
 
         if (byEmail) {
@@ -154,8 +166,8 @@ export class AuthService {
         } else {
           user = await this.prisma.user.create({
             data: {
-              name: payload.name ?? payload.email.split('@')[0],
-              email: payload.email,
+              name: payload.name ?? email.split('@')[0],
+              email,
               googleId: payload.sub,
               avatarUrl: payload.picture ?? null,
             },
@@ -244,7 +256,9 @@ export class AuthService {
   }
 
   async checkEmail(email: string) {
-    const existing = await this.prisma.user.findUnique({ where: { email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
     return { exists: Boolean(existing) };
   }
 

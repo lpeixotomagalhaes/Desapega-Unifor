@@ -22,11 +22,15 @@ export type PendingItemImage = {
 export type PendingItem = {
   id: string;
   createdAt: number;
+  /** Dono do rascunho — usado para não misturar filas entre contas no mesmo aparelho. */
+  userId: string;
   token: string;
   form: PendingItemForm;
   images: PendingItemImage[];
   status: PendingItemStatus;
   error?: string;
+  /** URLs já enviadas ao servidor numa tentativa anterior (evita reenviar fotos no retry). */
+  uploadedUrls?: string[];
 };
 
 export type ViewedItemRecord = {
@@ -100,6 +104,23 @@ export async function deletePendingItem(id: string): Promise<void> {
   const db = await openDb();
   const tx = db.transaction("pendingItems", "readwrite");
   tx.objectStore("pendingItems").delete(id);
+  await txDone(tx);
+  db.close();
+}
+
+/** Remove todos os rascunhos de um usuário — usado no sign-out para não
+ * deixar anúncios (e o token JWT que os acompanha) acessíveis à próxima
+ * conta que usar o mesmo aparelho. */
+export async function deletePendingItemsForUser(userId: string): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction("pendingItems", "readwrite");
+  const store = tx.objectStore("pendingItems");
+  const rows = (await reqToPromise(store.getAll())) as PendingItem[];
+  for (const row of rows) {
+    if (row.userId === userId) {
+      store.delete(row.id);
+    }
+  }
   await txDone(tx);
   db.close();
 }

@@ -11,7 +11,8 @@ function MobileTabBarGlobalInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const { menuOpen, supportOpen, openMenu, openSupport } = useMobileChrome();
+  const { menuOpen, supportOpen, openMenu, closeMenu, openSupport, closeSupport } =
+    useMobileChrome();
 
   const hide =
     pathname.startsWith("/login") ||
@@ -29,10 +30,19 @@ function MobileTabBarGlobalInner() {
   else if (supportOpen) active = "suporte";
   else if (pathname === "/") active = "inicio";
   else if (onApp && appTab === "anunciar") active = "anunciar";
+  // "Meus anúncios" e "Salvos" só são alcançáveis pelo drawer de Menu no
+  // mobile (ver ProfileDrawer), então o ícone aceso deve ser "Menu", não
+  // "Buscar" (que é a aba Explorar).
+  else if (onApp && (appTab === "meus" || appTab === "salvos")) active = "menu";
   else if (onApp) active = "buscar";
 
   const onSelect = useCallback(
     (tab: MobileTabId) => {
+      // Navegar para uma aba de página inteira deve sempre fechar os
+      // drawers/modais abertos (menu ou suporte).
+      closeMenu();
+      closeSupport();
+
       if (tab === "inicio") {
         router.push("/");
         return;
@@ -69,7 +79,7 @@ function MobileTabBarGlobalInner() {
         openMenu();
       }
     },
-    [openMenu, openSupport, pathname, router, user],
+    [closeMenu, closeSupport, openMenu, openSupport, pathname, router, user],
   );
 
   if (hide) return null;

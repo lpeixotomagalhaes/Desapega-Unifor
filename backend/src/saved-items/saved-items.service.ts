@@ -25,9 +25,9 @@ export class SavedItemsService {
         'Você não pode salvar o seu próprio anúncio.',
       );
     }
-    if (item.status === 'CONCLUIDO') {
+    if (item.status === 'CONCLUIDO' || item.status === 'SUSPENSO') {
       throw new BadRequestException(
-        'Este anúncio já foi concluído e não pode ser salvo.',
+        'Este anúncio não está mais disponível e não pode ser salvo.',
       );
     }
 

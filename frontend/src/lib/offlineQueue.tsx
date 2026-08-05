@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { api, ApiError, type CreateItemInput } from "./api";
+import { useAuth } from "./auth";
 import {
   deletePendingItem,
   getAllPendingItems,
@@ -63,11 +64,15 @@ async function registerBackgroundSync(): Promise<void> {
 }
 
 async function publishPendingItem(item: PendingItem): Promise<void> {
-  const urls: string[] = [];
-  for (const image of item.images) {
+  // Reaproveita fotos já enviadas numa tentativa anterior — evita duplicar
+  // upload (e deixar imagens órfãs) quando só a criação do anúncio falhou.
+  const urls: string[] = [...(item.uploadedUrls ?? [])];
+  for (let i = urls.length; i < item.images.length; i++) {
+    const image = item.images[i];
     const file = new File([image.blob], image.name, { type: image.type });
     const { url } = await api.uploadImage(item.token, file);
     urls.push(url);
+    await putPendingItem({ ...item, uploadedUrls: [...urls] });
   }
 
   const payload: CreateItemInput = {
@@ -84,25 +89,40 @@ async function publishPendingItem(item: PendingItem): Promise<void> {
 }
 
 export function OfflineQueueProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [isOnline, setIsOnline] = useState(true);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const flushingRef = useRef(false);
+  const userId = user?.id ?? null;
 
   const refresh = useCallback(async () => {
     try {
       const rows = await getAllPendingItems();
-      setPendingItems(rows);
+      // Cada aparelho pode ter fila de mais de uma conta (sign-out não
+      // apaga instantaneamente em todos os casos) — só mostra a do usuário logado.
+      setPendingItems(userId ? rows.filter((row) => row.userId === userId) : []);
     } catch {
       // IndexedDB may be unavailable in private mode
     }
-  }, []);
+  }, [userId]);
 
   const flush = useCallback(async () => {
-    if (flushingRef.current || !navigator.onLine) return;
+    if (flushingRef.current || !navigator.onLine || !userId) return;
     flushingRef.current = true;
     try {
       const rows = await getAllPendingItems();
-      for (const item of rows) {
+      // Itens travados em "syncing" (aba fechada/recarregada no meio do
+      // upload) voltam para "pending" para não ficarem esquecidos para sempre.
+      const stuck = rows.filter(
+        (row) => row.userId === userId && row.status === "syncing",
+      );
+      for (const row of stuck) {
+        await putPendingItem({ ...row, status: "pending" });
+      }
+
+      const queue = stuck.length > 0 ? await getAllPendingItems() : rows;
+      for (const item of queue) {
+        if (item.userId !== userId) continue;
         if (item.status !== "pending") continue;
         const syncing: PendingItem = { ...item, status: "syncing", error: undefined };
         await putPendingItem(syncing);
@@ -129,7 +149,7 @@ export function OfflineQueueProvider({ children }: { children: ReactNode }) {
       flushingRef.current = false;
       await refresh();
     }
-  }, [refresh]);
+  }, [refresh, userId]);
 
   useEffect(() => {
     setIsOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
@@ -171,6 +191,9 @@ export function OfflineQueueProvider({ children }: { children: ReactNode }) {
 
   const addPendingItem = useCallback(
     async (form: PendingItemForm, images: File[], token: string) => {
+      if (!userId) {
+        throw new Error("É preciso estar logado para salvar um anúncio offline.");
+      }
       const id = newId();
       // Clona para Blob puro — IndexedDB estrutura File de forma inconsistente em alguns browsers
       const storedImages: PendingItemImage[] = await Promise.all(
@@ -189,6 +212,7 @@ export function OfflineQueueProvider({ children }: { children: ReactNode }) {
       const item: PendingItem = {
         id,
         createdAt: Date.now(),
+        userId,
         token,
         form: {
           title: form.title.trim(),
@@ -205,7 +229,7 @@ export function OfflineQueueProvider({ children }: { children: ReactNode }) {
       await registerBackgroundSync();
       return id;
     },
-    [refresh],
+    [refresh, userId],
   );
 
   const removePendingItem = useCallback(

@@ -36,14 +36,31 @@ export function ImageDropzone({
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  // Sempre aponta para a lista mais recente — o cleanup do unmount roda numa
+  // closure "congelada" no primeiro render, então sem o ref ele revogaria
+  // sempre o array vazio inicial e vazaria as blob URLs criadas depois.
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
 
   useEffect(() => {
     return () => {
-      images.forEach((img) => URL.revokeObjectURL(img.preview));
+      imagesRef.current.forEach((img) => URL.revokeObjectURL(img.preview));
     };
-    // only revoke on unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Se o pai substituir a lista inteira (ex.: limpar o formulário depois de
+  // publicar), revoga as blob URLs que saíram — revokeObjectURL numa URL já
+  // revogada (ex.: por removeAt) é inofensivo, então não há risco de duplicar.
+  const prevImagesRef = useRef<ImageDraft[]>(images);
+  useEffect(() => {
+    const currentIds = new Set(images.map((i) => i.id));
+    for (const prev of prevImagesRef.current) {
+      if (!currentIds.has(prev.id)) {
+        URL.revokeObjectURL(prev.preview);
+      }
+    }
+    prevImagesRef.current = images;
+  }, [images]);
 
   const addFiles = useCallback(
     (list: FileList | File[]) => {

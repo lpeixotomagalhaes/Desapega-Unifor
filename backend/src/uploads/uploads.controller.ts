@@ -38,7 +38,9 @@ function isAllowedImage(file: {
   mimetype: string;
 }): boolean {
   const ext = extname(file.originalname).toLowerCase();
-  return ALLOWED_MIME.has(file.mimetype) || ALLOWED_EXT.has(ext);
+  // Exige extensão E mimetype coerentes — evita que um arquivo qualquer
+  // passe só por ter uma das duas coisas "parecendo" imagem.
+  return ALLOWED_MIME.has(file.mimetype) && ALLOWED_EXT.has(ext);
 }
 
 @Controller('uploads')

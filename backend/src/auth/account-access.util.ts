@@ -1,4 +1,4 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import type { AccountStatus } from '../generated/prisma/enums';
 
 export type AccountGateUser = {
@@ -14,21 +14,6 @@ export function isSuspensionExpired(user: AccountGateUser): boolean {
     !!user.suspendedUntil &&
     user.suspendedUntil.getTime() <= Date.now()
   );
-}
-
-/**
- * Bloqueio total (legado). Preferir assertMarketplaceAllowed —
- * banidos/suspensos podem navegar, mas não negociar.
- */
-export function assertAccountAllowed(user: AccountGateUser): void {
-  if (user.accountStatus === 'BANNED') {
-    throw new UnauthorizedException(banMessage(user));
-  }
-
-  if (user.accountStatus === 'SUSPENDED') {
-    if (isSuspensionExpired(user)) return;
-    throw new UnauthorizedException(suspendMessage(user));
-  }
 }
 
 /**
