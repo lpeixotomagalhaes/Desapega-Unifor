@@ -342,6 +342,19 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
     if (submitting) return;
     setError(null);
 
+    const title = form.title.trim();
+    const description = form.description.trim();
+
+    if (title.length < 3) {
+      setError("O título deve ter pelo menos 3 caracteres.");
+      return;
+    }
+    if (description.length < 10) {
+      setError(
+        `A descrição deve ter pelo menos 10 caracteres (faltam ${10 - description.length}).`,
+      );
+      return;
+    }
     if (form.categories.length === 0) {
       setError("Escolha pelo menos uma categoria.");
       return;
@@ -379,10 +392,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
       try {
         for (let i = 0; i < images.length; i++) {
           const draft = images[i];
-          setStep(
-            "fotos",
-            "active",
-          );
+          setStep("fotos", "active");
           const { url } = await api.uploadImage(token, draft.file);
           urls.push(url);
         }
@@ -399,8 +409,8 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
       await sleep(220);
 
       const payload: CreateItemInput = {
-        title: form.title,
-        description: form.description,
+        title,
+        description,
         categories: form.categories,
         isDonation: form.isDonation,
         imageUrl: urls[0],
@@ -418,7 +428,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
         return;
       }
 
-      setSavedTitle(form.title.trim());
+      setSavedTitle(title);
       markDoneUpTo(["dados", "fotos", "publicar", "concluido"]);
       setPhase("success");
       setSubmitting(false);
@@ -552,6 +562,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
 
   return (
     <form
+      noValidate
       onSubmit={handleSubmit}
       className="mx-auto flex max-w-2xl flex-col gap-5 animate-fade-up"
     >
@@ -601,27 +612,41 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
           Título
           <input
             required
-            minLength={3}
             maxLength={100}
             value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, title: e.target.value });
+              setError(null);
+            }}
             placeholder="Ex: Livro de Cálculo Vol. 1"
             className={inputClass}
           />
+          <span className="text-xs font-normal text-muted">
+            Mínimo 3 caracteres
+          </span>
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm font-medium text-navy/80">
           Descrição
           <textarea
             required
-            minLength={10}
             maxLength={1000}
             rows={4}
             value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            onChange={(e) => {
+              setForm({ ...form, description: e.target.value });
+              setError(null);
+            }}
             placeholder="Estado do item, detalhes e ponto de retirada no campus"
             className={inputClass}
           />
+          <span className="text-xs font-normal text-muted">
+            {form.description.trim().length}/10 caracteres mínimos
+            {form.description.trim().length > 0 &&
+            form.description.trim().length < 10
+              ? ` · faltam ${10 - form.description.trim().length}`
+              : ""}
+          </span>
         </label>
 
         <CampusDeliveryTip variant="form" />
