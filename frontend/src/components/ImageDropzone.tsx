@@ -3,8 +3,16 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ALLOWED_EXT = /\.(jpe?g|png|webp|gif)$/i;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_FILES = 5;
+
+function isAllowedFile(file: File): boolean {
+  if (ALLOWED.includes(file.type)) return true;
+  // Alguns celulares mandam type vazio — aceita pela extensão do nome.
+  if (!file.type && ALLOWED_EXT.test(file.name)) return true;
+  return false;
+}
 
 export type ImageDraft = {
   id: string;
@@ -71,7 +79,7 @@ export function ImageDropzone({
           onError(`Você pode enviar no máximo ${maxFiles} fotos.`);
           break;
         }
-        if (!ALLOWED.includes(file.type)) {
+        if (!isAllowedFile(file)) {
           onError("Envie apenas imagens JPG, PNG, WEBP ou GIF.");
           continue;
         }

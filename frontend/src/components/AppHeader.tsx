@@ -237,7 +237,7 @@ function AppHeaderInner() {
               Entrar
             </Link>
             <Link
-              href="/registro"
+              href={`/registro?returnUrl=${encodeURIComponent("/app?tab=anunciar")}`}
               className={`hidden items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition-soft sm:inline-flex sm:px-5 sm:py-2.5 sm:text-base ${
                 pathname.startsWith("/registro")
                   ? "bg-brand hover:bg-brand-bright"

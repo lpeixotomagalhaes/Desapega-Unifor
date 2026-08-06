@@ -9,6 +9,7 @@ import {
   ApiError,
   CATEGORIES,
   isMarketplaceRestricted,
+  NetworkError,
   type Category,
   type CreateItemInput,
 } from "@/lib/api";
@@ -219,6 +220,29 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [savedTitle, setSavedTitle] = useState("");
   const [queuedId, setQueuedId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const failWith = (message: string, failedStep?: StepId) => {
+    if (failedStep) {
+      setStepStates((prev) => ({
+        ...prev,
+        [failedStep]: "error",
+      }));
+    }
+    setPhase("error");
+    setError(message);
+    setSubmitting(false);
+  };
+
+  const errorMessage = (err: unknown): string => {
+    if (err instanceof ApiError || err instanceof NetworkError) {
+      return err.message;
+    }
+    if (err instanceof Error && err.message.trim()) {
+      return err.message;
+    }
+    return "Não foi possível publicar o anúncio. Tente novamente.";
+  };
 
   // Enquanto a tela "aguardando conexão" está aberta, observa a fila: assim
   // que este rascunho for publicado (some da fila) ou falhar, atualiza a tela
@@ -239,9 +263,10 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
     }
     if (match.status === "error") {
       setPhase("error");
-      setError(match.error ?? "Não foi possível publicar o anúncio salvo offline.");
+      setError(
+        match.error ?? "Não foi possível publicar o anúncio salvo offline.",
+      );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingItems, queuedId, phase]);
 
   useEffect(() => {
@@ -314,6 +339,7 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError(null);
 
     if (form.categories.length === 0) {
@@ -329,9 +355,13 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
       return;
     }
 
+    setSubmitting(true);
     try {
+      // Só enfileira offline quando realmente sem rede — falhas online
+      // precisam mostrar erro (antes caíam silenciosamente na fila).
       if (!navigator.onLine || !isOnline) {
         await runOfflineQueue();
+        setSubmitting(false);
         return;
       }
 
@@ -346,9 +376,22 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
       await sleep(280);
 
       const urls: string[] = [];
-      for (const draft of images) {
-        const { url } = await api.uploadImage(token, draft.file);
-        urls.push(url);
+      try {
+        for (let i = 0; i < images.length; i++) {
+          const draft = images[i];
+          setStep(
+            "fotos",
+            "active",
+          );
+          const { url } = await api.uploadImage(token, draft.file);
+          urls.push(url);
+        }
+      } catch (err) {
+        failWith(
+          `Falha ao enviar a foto ${urls.length + 1}: ${errorMessage(err)}`,
+          "fotos",
+        );
+        return;
       }
 
       setStep("fotos", "done");
@@ -364,33 +407,34 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
         imageUrls: urls,
         ...(form.isDonation ? {} : { price: Number(form.price) }),
       };
-      await api.createItem(token, payload);
+
+      try {
+        await api.createItem(token, payload);
+      } catch (err) {
+        failWith(
+          `As fotos foram enviadas, mas a publicação falhou: ${errorMessage(err)}`,
+          "publicar",
+        );
+        return;
+      }
 
       setSavedTitle(form.title.trim());
       markDoneUpTo(["dados", "fotos", "publicar", "concluido"]);
       setPhase("success");
+      setSubmitting(false);
     } catch (err) {
-      const isNetworkFailure =
-        !(err instanceof ApiError) || !navigator.onLine;
-
-      if (isNetworkFailure) {
+      // Offline real no meio do processo → salva na fila
+      if (!navigator.onLine || !isOnline) {
         try {
           await runOfflineQueue();
+          setSubmitting(false);
           return;
         } catch (queueErr) {
-          setPhase("error");
-          setError(
-            queueErr instanceof Error
-              ? queueErr.message
-              : "Não foi possível salvar o anúncio offline.",
-          );
+          failWith(errorMessage(queueErr), "salvar_local");
+          return;
         }
-      } else {
-        setPhase("error");
-        setError(
-          err instanceof ApiError ? err.message : "Erro ao criar anúncio.",
-        );
       }
+      failWith(errorMessage(err), "publicar");
     }
   };
 
@@ -658,9 +702,14 @@ export function CreateItemFlow({ onCreated }: { onCreated: () => void }) {
 
       <button
         type="submit"
-        className="rounded-xl bg-navy py-3.5 font-semibold text-white shadow-sm transition-soft hover:bg-brand"
+        disabled={submitting}
+        className="rounded-xl bg-navy py-3.5 font-semibold text-white shadow-sm transition-soft hover:bg-brand disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isOnline ? "Publicar anúncio" : "Salvar e aguardar conexão"}
+        {submitting
+          ? "Publicando…"
+          : isOnline
+            ? "Publicar anúncio"
+            : "Salvar e aguardar conexão"}
       </button>
     </form>
   );

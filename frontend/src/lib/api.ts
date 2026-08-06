@@ -327,11 +327,47 @@ export class ApiError extends Error {
   }
 }
 
+/** Erro de rede/timeout (API inacessível, CORS, cold start, etc.). */
+export class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
+const DEFAULT_TIMEOUT_MS = 45_000;
+const UPLOAD_TIMEOUT_MS = 90_000;
+
+function friendlyHttpMessage(status: number, fallback: string): string {
+  if (status === 401) {
+    return "Sua sessão expirou. Entre novamente para publicar o anúncio.";
+  }
+  if (status === 403) {
+    return "Você não tem permissão para esta ação. Sua conta pode estar restrita.";
+  }
+  if (status === 413) {
+    return "A imagem é grande demais. Envie fotos de até 5 MB.";
+  }
+  if (status === 429) {
+    return "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.";
+  }
+  if (status >= 500) {
+    return "O servidor está temporariamente indisponível. Tente novamente em instantes.";
+  }
+  return fallback;
+}
+
 async function request<T>(
   path: string,
-  options: RequestInit & { token?: string | null; json?: boolean } = {},
+  options: RequestInit & {
+    token?: string | null;
+    json?: boolean;
+    /** Timeout em ms (padrão 45s; uploads usam 90s). */
+    timeoutMs?: number;
+  } = {},
 ): Promise<T> {
-  const { token, json = true, ...init } = options;
+  const { token, json = true, timeoutMs = DEFAULT_TIMEOUT_MS, ...init } =
+    options;
 
   const headers: HeadersInit = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -342,21 +378,48 @@ async function request<T>(
     (headers as Record<string, string>)["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-  });
+  const controller = new AbortController();
+  const externalSignal = init.signal;
+  const onAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", onAbort, { once: true });
+  }
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new NetworkError(
+        "A requisição demorou demais. A API pode estar acordando — tente de novo em alguns segundos.",
+      );
+    }
+    throw new NetworkError(
+      "Não foi possível conectar à API. Verifique sua internet e tente novamente.",
+    );
+  } finally {
+    clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener("abort", onAbort);
+  }
 
   const body = (await response.json().catch(() => null)) as unknown;
 
   if (!response.ok) {
-    const message =
+    const raw =
       body && typeof body === "object" && "message" in body
         ? Array.isArray((body as { message: unknown }).message)
           ? ((body as { message: string[] }).message[0] ?? "Erro na requisição.")
           : String((body as { message: unknown }).message)
         : "Erro na requisição.";
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyHttpMessage(response.status, raw));
   }
 
   return body as T;
@@ -417,12 +480,31 @@ export const api = {
 
   uploadImage: (token: string, file: File) => {
     const body = new FormData();
-    body.append("file", file);
+    // Garante nome com extensão — alguns celulares enviam "image" sem .jpg
+    // e o filtro do servidor rejeitava o arquivo.
+    let name = file.name?.trim() || "foto.jpg";
+    if (!/\.(jpe?g|png|webp|gif)$/i.test(name)) {
+      const ext =
+        file.type === "image/png"
+          ? ".png"
+          : file.type === "image/webp"
+            ? ".webp"
+            : file.type === "image/gif"
+              ? ".gif"
+              : ".jpg";
+      name = `${name.replace(/\.[^.]*$/, "") || "foto"}${ext}`;
+    }
+    const normalized =
+      name !== file.name
+        ? new File([file], name, { type: file.type || "image/jpeg" })
+        : file;
+    body.append("file", normalized);
     return request<{ url: string }>("/uploads", {
       method: "POST",
       body,
       token,
       json: false,
+      timeoutMs: UPLOAD_TIMEOUT_MS,
     });
   },
 

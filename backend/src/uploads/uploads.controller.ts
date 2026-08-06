@@ -33,14 +33,30 @@ function ensureUploadDir() {
   }
 }
 
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
+
 function isAllowedImage(file: {
   originalname: string;
   mimetype: string;
 }): boolean {
+  // Celulares às vezes enviam foto sem extensão no nome — o MIME é a
+  // fonte da verdade. Extensão, se existir, precisa ser coerente.
+  if (!ALLOWED_MIME.has(file.mimetype)) return false;
   const ext = extname(file.originalname).toLowerCase();
-  // Exige extensão E mimetype coerentes — evita que um arquivo qualquer
-  // passe só por ter uma das duas coisas "parecendo" imagem.
-  return ALLOWED_MIME.has(file.mimetype) && ALLOWED_EXT.has(ext);
+  if (!ext) return true;
+  return ALLOWED_EXT.has(ext);
+}
+
+function extensionFor(file: { originalname: string; mimetype: string }): string {
+  const ext = extname(file.originalname).toLowerCase();
+  if (ALLOWED_EXT.has(ext)) return ext;
+  return MIME_TO_EXT[file.mimetype] ?? '.jpg';
 }
 
 @Controller('uploads')
@@ -55,9 +71,7 @@ export class UploadsController {
           cb(null, UPLOAD_DIR);
         },
         filename: (_req, file, cb) => {
-          const ext = extname(file.originalname).toLowerCase() || '.jpg';
-          const safeExt = ALLOWED_EXT.has(ext) ? ext : '.jpg';
-          cb(null, `${randomUUID()}${safeExt}`);
+          cb(null, `${randomUUID()}${extensionFor(file)}`);
         },
       }),
       limits: { fileSize: MAX_BYTES },
