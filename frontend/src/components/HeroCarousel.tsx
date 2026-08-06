@@ -1,7 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Reveal } from "@/components/Reveal";
 
@@ -9,11 +14,6 @@ const SLIDES = [
   {
     src: "/hero/feira-02.jpg",
     alt: "Feira de Profissões Unifor — campus movimentado",
-    credit: "Foto: Ares Soares / Unifor",
-  },
-  {
-    src: "/hero/feira-03.jpg",
-    alt: "Feira de Profissões Unifor — vivência no campus",
     credit: "Foto: Ares Soares / Unifor",
   },
   {
@@ -29,19 +29,65 @@ const SLIDES = [
 ] as const;
 
 const INTERVAL_MS = 5500;
+const SWIPE_THRESHOLD_PX = 48;
 
 export function HeroCarousel() {
   const [index, setIndex] = useState(0);
+  const pointerStartX = useRef<number | null>(null);
+  const pauseAutoplayUntil = useRef(0);
 
   useEffect(() => {
     const id = window.setInterval(() => {
+      if (Date.now() < pauseAutoplayUntil.current) return;
       setIndex((i) => (i + 1) % SLIDES.length);
     }, INTERVAL_MS);
     return () => window.clearInterval(id);
   }, []);
 
+  function goTo(next: number) {
+    setIndex(((next % SLIDES.length) + SLIDES.length) % SLIDES.length);
+    pauseAutoplayUntil.current = Date.now() + INTERVAL_MS;
+  }
+
+  function onPointerDown(e: ReactPointerEvent<HTMLElement>) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    pointerStartX.current = e.clientX;
+  }
+
+  function onPointerMove(e: ReactPointerEvent<HTMLElement>) {
+    if (pointerStartX.current == null) return;
+    const dx = e.clientX - pointerStartX.current;
+    if (Math.abs(dx) > 10) {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    }
+  }
+
+  function onPointerUp(e: ReactPointerEvent<HTMLElement>) {
+    if (pointerStartX.current == null) return;
+    const dx = e.clientX - pointerStartX.current;
+    pointerStartX.current = null;
+
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
+
+    pauseAutoplayUntil.current = Date.now() + INTERVAL_MS;
+    setIndex((i) =>
+      dx < 0 ? (i + 1) % SLIDES.length : (i - 1 + SLIDES.length) % SLIDES.length,
+    );
+  }
+
+  function onPointerCancel() {
+    pointerStartX.current = null;
+  }
+
   return (
-    <section className="relative min-h-[22rem] overflow-hidden text-white sm:min-h-[28rem] lg:min-h-[32rem]">
+    <section
+      className="relative min-h-[22rem] touch-pan-y overflow-hidden text-white sm:min-h-[28rem] lg:min-h-[32rem]"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      style={{ touchAction: "pan-y" }}
+    >
       {SLIDES.map((slide, i) => (
         <div
           key={slide.src}
@@ -58,7 +104,8 @@ export function HeroCarousel() {
             fill
             priority={i === 0}
             sizes="100vw"
-            className={`object-cover object-center transition-transform duration-[6500ms] ease-out ${
+            draggable={false}
+            className={`pointer-events-none select-none object-cover object-center transition-transform duration-[6500ms] ease-out ${
               i === index ? "scale-105" : "scale-100"
             }`}
           />
@@ -99,7 +146,7 @@ export function HeroCarousel() {
               role="tab"
               aria-selected={i === index}
               aria-label={`Slide ${i + 1}`}
-              onClick={() => setIndex(i)}
+              onClick={() => goTo(i)}
               className={`h-2 rounded-full transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                 i === index
                   ? "w-8 bg-navy/70"
