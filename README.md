@@ -196,45 +196,70 @@ Limite de requisições (`@nestjs/throttler`): 120 req/min por IP no geral, com 
 
 ### Estratégia de engenharia de prompts
 
-O fluxo de trabalho foi majoritariamente conversacional e iterativo: descrever o comportamento desejado em português, revisar o diff proposto, rodar a aplicação, e devolver o erro real (stack trace, comportamento incorreto) para o agente corrigir — em vez de tentar descrever a causa raiz de antemão.
+O fluxo foi **especificação → plano → diff → validação empírica**: descrever o comportamento esperado (contrato de UX + restrições técnicas), revisar a proposta do agente antes de aplicar, rodar a aplicação e devolver evidência real (stack trace, status HTTP, estado do IndexedDB) para a correção — em vez de assumir a causa raiz no primeiro pedido.
+
+Em linhas gerais, os três prompts abaixo cobrem o ciclo completo de uso da IA neste projeto: (1) **feature nova com escopo aberto** (PWA offline), (2) **diagnóstico a partir de sintoma em produção** (fila offline vs. erro genérico de rede), (3) **auditoria transversal** antes da entrega (segurança, domínio e documentação).
 
 **Prompt 1 — Implementação do modo offline (PWA) do zero:**
 
 ```
-quero q vc me ajude a criar o service worker do projeto para carregar algumas
-informações em cache para funcionamento e visualização offline de dados.
-primeiro gostaria q o usuario conseguisse cadastrar um produto offline e
-quando o mesmo se conectar a internet, ele consiga publicar o produto.
-gostaria q ele pudesse acessar produtos visualizados anteriormente,
-salvando-os em cache. gostaria q implementasse algumas funcionalidades
-offline a mais na dashboard também, estou aberto a sugestões
+Preciso implementar suporte offline (PWA) no Desapega UNIFOR.
+
+Requisitos:
+1. Service Worker com estratégias de cache por tipo de recurso
+   (app-shell / assets estáticos). Não cachear respostas da API
+   autenticada.
+2. Permitir criar anúncio offline: persistir formulário + imagens
+   em IndexedDB e publicar automaticamente ao reconectar
+   (Background Sync quando disponível).
+3. Cache local de itens visualizados recentemente para fallback
+   na navegação offline.
+4. Sugira e implemente caches auxiliares no dashboard admin
+   (ex.: último snapshot de métricas), desde que não vazem dados
+   entre contas no mesmo dispositivo.
+
+Antes de codar, proponha um plano em etapas para eu revisar.
 ```
 
-Esse prompt (deliberadamente aberto, "estou aberto a sugestões") gerou um plano em várias etapas — Service Worker com estratégias de cache diferentes por tipo de recurso, IndexedDB para fila de anúncios pendentes e itens vistos, `Background Sync` para publicar ao reconectar, e cache de estatísticas no dashboard admin — que foi revisado e ajustado antes da implementação.
+Prompt **aberto no “como”** (estratégias e escopo do dashboard) e **fechado no “o quê”** (fila offline, viewed cache, isolamento de dados). Resultado: plano com SW (network-first em navegações, stale-while-revalidate em assets, bypass cross-origin), IndexedDB (`pendingItems` / `viewedItems`), flush via `online` + Background Sync, e snapshot de stats no admin — revisado antes da implementação.
 
 **Prompt 2 — Refinamento de UX guiado por bug real em produção:**
 
 ```
-eu tentei criar o anuncio mas aparece uma mensagem de erro ao carregar o
-anuncio, quero q tenha tratamento de dados, coloque algo visual dizendo
-anuncio carregado, aguardando conexao para publicar. quero q tenha
-tratamento nas funcionalidades do pwa
+Bug no fluxo PWA de publicação: ao criar anúncio sem rede, a UI
+trata como falha genérica de carregamento em “Meus anúncios”.
+
+Esperado:
+- Distinguir “API inacessível” de “item enfileirado localmente”.
+- Feedback visual da esteira: dados salvos → aguardando conexão
+  → publicando → publicado (ou erro recuperável com retry).
+- Revisar os demais estados offline do PWA (banner global, fila,
+  empty states) para consistência.
+
+Diagnostique a causa no front (cache/fila vs. fetch) e corrija
+sem alterar o contrato da API.
 ```
 
-Aqui o prompt partiu de um problema observado (mensagem de erro incorreta ao criar anúncio offline) e não de uma especificação técnica — o agente teve que diagnosticar que a tela "Meus anúncios" tratava qualquer falha de rede como erro genérico, mesmo quando havia um item pendente na fila local, e depois desenhar os estados visuais (carregado → aguardando conexão → publicado).
+Partiu de um **sintoma**, não de um arquivo-alvo. O agente identificou que a aba “Meus anúncios” colapsava qualquer rejeição de `getMyItems` em erro genérico, mesmo com pendências válidas no IndexedDB, e passou a modelar estados explícitos da fila (salvo → aguardando → sincronizando → ok/erro).
 
 **Prompt 3 — Varredura de qualidade/segurança em todo o projeto:**
 
 ```
-gostaria q vc fizesse uma varredura pelo meu código, verificasse todos os
-possíveis erros, implementações incompletas e códigos redundantes ou
-desnecessários e corrija-os. quero q pense na interface tanto da web como
-mobile, tanto o marketplace como a dashboard administrativa. [...] quero q
-revise os arquivos do trabalho passado e preencha o readme com as
-funcionalidades implementadas e o diário de bordo
+Faça uma auditoria do monorepo (NestJS + Next.js) antes da entrega.
+
+Prioridade: segurança > corretude de domínio > UX responsiva
+(web/mobile, marketplace e /dashboard) > código morto/redundante.
+
+Verifique em especial: rotas sem auth, vazamento de PII, inconsistência
+entre enums Prisma e fluxos de moderação, race conditions em pedidos,
+e isolamento da fila offline por usuário.
+
+Corrija os achados em lotes pequenos com typecheck/build. Ao final,
+atualize o README com funcionalidades reais e o Diário de Bordo da IA
+(ferramentas, prompts representativos, reflexão crítica).
 ```
 
-Esse pedido guiou a etapa final do projeto: dois subagentes de exploração (backend e frontend) foram disparados em paralelo para mapear problemas, os achados foram priorizados manualmente (segurança > corretude > UX > código morto) e corrigidos um a um com validação de `build`/`typecheck` a cada lote de mudanças.
+Pedido de **fechamento**: dois subagentes `explore` (backend/frontend) mapearam issues em paralelo; a priorização foi humana; cada lote foi validado com `build`/`typecheck` antes do próximo.
 
 ### Reflexão crítica
 
